@@ -12,6 +12,17 @@ import {
   Filter,
   CheckCircle2
 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Line,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ReferenceLine
+} from 'recharts';
 import { TypingSession } from '../types';
 import { KeyboardHeatmap } from './KeyboardHeatmap';
 
@@ -30,7 +41,7 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
 }) => {
   const [filterMode, setFilterMode] = useState<string>('all');
   const [chartMetric, setChartMetric] = useState<'wpm' | 'cpm' | 'accuracy'>('wpm');
-  const [limitCount, setLimitCount] = useState<number>(20);
+  const [limitCount, setLimitCount] = useState<number>(25);
 
   // Filter sessions
   const filteredSessions = sessions.filter(s => {
@@ -52,25 +63,32 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
   // Chart data: chronological order (oldest to newest)
   const chartSessions = [...filteredSessions].reverse().slice(-limitCount);
 
-  // Chart dimensions
-  const chartWidth = 720;
-  const chartHeight = 180;
+  // Formatted data array for Recharts LineChart
+  const chartData = chartSessions.map((s, idx) => {
+    const d = new Date(s.timestamp);
+    const timeFormatted = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const dateFormatted = d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    return {
+      name: `#${idx + 1}`,
+      sessionNum: idx + 1,
+      wpm: s.wpm,
+      rawWpm: s.rawWpm || s.wpm,
+      cpm: s.cpm,
+      accuracy: s.accuracy,
+      errors: s.errorCount || 0,
+      mode: s.mode,
+      date: `${dateFormatted} · ${timeFormatted}`,
+      timestamp: s.timestamp
+    };
+  });
 
-  const maxVal = Math.max(
-    ...chartSessions.map(s => (chartMetric === 'wpm' ? s.wpm : chartMetric === 'cpm' ? s.cpm : s.accuracy)),
-    chartMetric === 'accuracy' ? 100 : 80
-  );
+  const avgSliceWpm = chartData.length > 0
+    ? Math.round(chartData.reduce((acc, d) => acc + d.wpm, 0) / chartData.length)
+    : 0;
 
-  const points = chartSessions.map((s, idx) => {
-    const val = chartMetric === 'wpm' ? s.wpm : chartMetric === 'cpm' ? s.cpm : s.accuracy;
-    const x = chartSessions.length > 1 ? (idx / (chartSessions.length - 1)) * chartWidth : chartWidth / 2;
-    const y = chartHeight - (val / (chartMetric === 'accuracy' ? 100 : maxVal)) * (chartHeight - 20) - 10;
-    return `${x},${y}`;
-  }).join(' ');
-
-  const areaPoints = chartSessions.length > 1
-    ? `0,${chartHeight} ${points} ${chartWidth},${chartHeight}`
-    : '';
+  const maxSliceWpm = chartData.length > 0
+    ? Math.max(...chartData.map(d => d.wpm))
+    : 0;
 
   // Mode best records
   const getModeBest = (m: string) => {
@@ -247,74 +265,168 @@ export const ProgressDashboard: React.FC<ProgressDashboardProps> = ({
             <select
               value={limitCount}
               onChange={e => setLimitCount(Number(e.target.value))}
-              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 focus:outline-none"
+              className="px-2.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 text-xs font-mono text-slate-300 focus:outline-none cursor-pointer"
             >
-              <option value={10}>Last 10</option>
-              <option value={20}>Last 20</option>
-              <option value={50}>Last 50</option>
+              <option value={10}>Last 10 Tests</option>
+              <option value={25}>Last 25 Tests</option>
+              <option value={50}>Last 50 Tests</option>
+              <option value={100}>Last 100 Tests</option>
             </select>
           </div>
         </div>
 
-        {chartSessions.length === 0 ? (
-          <div className="text-center py-12 text-xs font-mono text-slate-500">
-            Complete tests to visualize your progress curve here!
+        {chartData.length === 0 ? (
+          <div className="text-center py-14 text-xs font-mono text-slate-500">
+            Complete typing tests to visualize your progress curve here!
           </div>
         ) : (
-          <div className="w-full overflow-x-auto pt-2">
-            <div className="min-w-[550px]">
-              <svg viewBox={`0 0 ${chartWidth} ${chartHeight}`} className="w-full h-48 overflow-visible">
-                <defs>
-                  <linearGradient id="progressGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#f59e0b" stopOpacity="0.3" />
-                    <stop offset="100%" stopColor="#f59e0b" stopOpacity="0.0" />
-                  </linearGradient>
-                </defs>
-
-                {/* Horizontal reference grid */}
-                <line x1="0" y1={chartHeight * 0.25} x2={chartWidth} y2={chartHeight * 0.25} stroke="#334155" strokeDasharray="4 4" strokeWidth="1" />
-                <line x1="0" y1={chartHeight * 0.5} x2={chartWidth} y2={chartHeight * 0.5} stroke="#334155" strokeDasharray="4 4" strokeWidth="1" />
-                <line x1="0" y1={chartHeight * 0.75} x2={chartWidth} y2={chartHeight * 0.75} stroke="#334155" strokeDasharray="4 4" strokeWidth="1" />
-                <line x1="0" y1={chartHeight} x2={chartWidth} y2={chartHeight} stroke="#334155" strokeWidth="1" />
-
-                {/* Area under curve */}
-                {areaPoints && <polygon points={areaPoints} fill="url(#progressGrad)" />}
-
-                {/* Main line */}
-                <polyline
-                  fill="none"
-                  stroke={chartMetric === 'accuracy' ? '#10b981' : chartMetric === 'cpm' ? '#38bdf8' : '#f59e0b'}
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  points={points}
-                />
-
-                {/* Dots */}
-                {chartSessions.map((s, idx) => {
-                  const val = chartMetric === 'wpm' ? s.wpm : chartMetric === 'cpm' ? s.cpm : s.accuracy;
-                  const x = chartSessions.length > 1 ? (idx / (chartSessions.length - 1)) * chartWidth : chartWidth / 2;
-                  const y = chartHeight - (val / (chartMetric === 'accuracy' ? 100 : maxVal)) * (chartHeight - 20) - 10;
-                  return (
-                    <circle
-                      key={s.id}
-                      cx={x}
-                      cy={y}
-                      r={4.5}
-                      fill="#f59e0b"
-                      stroke="#0f172a"
-                      strokeWidth="2"
-                    >
-                      <title>{`Test #${chartSessions.length - idx}: ${val} ${chartMetric.toUpperCase()} (${s.mode})`}</title>
-                    </circle>
-                  );
-                })}
-              </svg>
-
-              <div className="flex justify-between text-[11px] font-mono text-slate-500 mt-2 px-1">
-                <span>Oldest ({chartSessions.length} tests ago)</span>
-                <span>Latest Session</span>
+          <div className="w-full pt-2">
+            {/* Quick Metrics Bar for Selected Range */}
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-3 px-1 text-xs font-mono">
+              <div className="flex items-center gap-4 text-slate-400">
+                <span>Tests plotted: <strong className="text-slate-100">{chartData.length}</strong></span>
+                <span>Range Avg: <strong className="text-amber-400">{avgSliceWpm} WPM</strong></span>
+                <span>Peak: <strong className="text-emerald-400">{maxSliceWpm} WPM</strong></span>
               </div>
+              <div className="text-[11px] text-slate-500 hidden sm:block">
+                Hover data points to inspect details
+              </div>
+            </div>
+
+            {/* Recharts Line / Composed Chart */}
+            <div className="w-full h-64 sm:h-72">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="wpmGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f59e0b" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#f59e0b" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="cpmGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#38bdf8" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="accGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+
+                  <XAxis
+                    dataKey="name"
+                    stroke="#64748b"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={{ stroke: '#334155' }}
+                  />
+
+                  <YAxis
+                    stroke="#64748b"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={{ stroke: '#334155' }}
+                    domain={chartMetric === 'accuracy' ? [70, 100] : ['dataMin - 5', 'dataMax + 10']}
+                  />
+
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const d = payload[0].payload;
+                        return (
+                          <div className="p-3.5 rounded-2xl bg-slate-900/95 border border-slate-700/80 shadow-2xl backdrop-blur-md font-mono text-xs space-y-1.5 z-50">
+                            <div className="flex items-center justify-between gap-4 border-b border-slate-800 pb-1.5 text-slate-400">
+                              <span className="font-bold text-amber-400">Session {d.name}</span>
+                              <span className="text-[10px] text-slate-500">{d.date}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-slate-400">Net WPM:</span>
+                              <span className="font-black text-amber-400 text-sm">{d.wpm} WPM</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-slate-400">Raw Speed:</span>
+                              <span className="font-semibold text-slate-300">{d.rawWpm} WPM</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-slate-400">Keystroke Rate:</span>
+                              <span className="font-semibold text-cyan-400">{d.cpm} CPM</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-slate-400">Accuracy:</span>
+                              <span className="font-semibold text-emerald-400">{d.accuracy}%</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-6">
+                              <span className="text-slate-400">Test Mode:</span>
+                              <span className="font-semibold text-slate-300">{d.mode}</span>
+                            </div>
+                          </div>
+                        );
+                      }
+                      return null;
+                    }}
+                  />
+
+                  {/* Benchmark Average WPM Reference Line */}
+                  {chartMetric === 'wpm' && avgSliceWpm > 0 && (
+                    <ReferenceLine
+                      y={avgSliceWpm}
+                      stroke="#f59e0b"
+                      strokeDasharray="4 4"
+                      strokeOpacity={0.6}
+                      label={{
+                        value: `Avg ${avgSliceWpm}`,
+                        fill: '#f59e0b',
+                        fontSize: 10,
+                        position: 'insideTopLeft'
+                      }}
+                    />
+                  )}
+
+                  {/* Aesthetic Gradient Fill under the curve */}
+                  <Area
+                    type="monotone"
+                    dataKey={chartMetric}
+                    fill={chartMetric === 'accuracy' ? 'url(#accGradient)' : chartMetric === 'cpm' ? 'url(#cpmGradient)' : 'url(#wpmGradient)'}
+                    stroke="none"
+                  />
+
+                  {/* Primary Metric Line */}
+                  <Line
+                    type="monotone"
+                    dataKey={chartMetric}
+                    stroke={chartMetric === 'accuracy' ? '#10b981' : chartMetric === 'cpm' ? '#38bdf8' : '#f59e0b'}
+                    strokeWidth={3}
+                    dot={{ fill: '#0f172a', stroke: chartMetric === 'accuracy' ? '#10b981' : chartMetric === 'cpm' ? '#38bdf8' : '#f59e0b', strokeWidth: 2, r: 4 }}
+                    activeDot={{ fill: '#f59e0b', stroke: '#fff', strokeWidth: 2, r: 6 }}
+                    isAnimationActive={true}
+                  />
+
+                  {/* Raw WPM dashed line overlay when viewing WPM */}
+                  {chartMetric === 'wpm' && (
+                    <Line
+                      type="monotone"
+                      dataKey="rawWpm"
+                      name="Raw Speed"
+                      stroke="#94a3b8"
+                      strokeWidth={1.5}
+                      strokeDasharray="3 3"
+                      dot={false}
+                    />
+                  )}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+
+            <div className="flex justify-between items-center text-[11px] font-mono text-slate-500 mt-2 px-1 border-t border-slate-800/80 pt-2">
+              <span>Oldest ({chartData.length} sessions ago)</span>
+              {chartMetric === 'wpm' && (
+                <div className="flex items-center gap-3">
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-amber-400 inline-block"></span> Net WPM</span>
+                  <span className="flex items-center gap-1.5"><span className="w-2.5 h-0.5 bg-slate-400 border-b border-dashed border-slate-400 inline-block"></span> Raw WPM</span>
+                </div>
+              )}
+              <span>Latest Session</span>
             </div>
           </div>
         )}
