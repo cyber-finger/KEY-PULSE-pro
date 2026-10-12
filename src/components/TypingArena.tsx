@@ -10,7 +10,8 @@ import {
   Target,
   Gauge,
   AlertCircle,
-  Upload
+  Upload,
+  Timer
 } from 'lucide-react';
 import {
   TestMode,
@@ -31,6 +32,7 @@ import {
 import { THEMES } from '../data/themes';
 import { soundSynth } from '../utils/audio';
 import { CustomTextModal } from './CustomTextModal';
+import { CustomTimerModal } from './CustomTimerModal';
 
 interface TypingArenaProps {
   onComplete: (session: TypingSession) => void;
@@ -59,10 +61,11 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
 }) => {
   // Test configuration
   const [mode, setMode] = useState<TestMode>('time');
-  const [timeOption, setTimeOption] = useState<TimeOption>(30);
+  const [timeOption, setTimeOption] = useState<TimeOption>(60);
   const [wordOption, setWordOption] = useState<WordOption>(50);
   const [category, setCategory] = useState<TextCategory>('common-words');
   const [isCustomModalOpen, setIsCustomModalOpen] = useState(false);
+  const [isCustomTimerModalOpen, setIsCustomTimerModalOpen] = useState(false);
   const [currentCustomTitle, setCurrentCustomTitle] = useState<string | null>(customTextTitle || null);
 
   // Text state
@@ -72,7 +75,7 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
   // Execution state
   const [isRunning, setIsRunning] = useState<boolean>(false);
   const [isFinished, setIsFinished] = useState<boolean>(false);
-  const [timeLeft, setTimeLeft] = useState<number>(30);
+  const [timeLeft, setTimeLeft] = useState<number>(60);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
 
   // Live Metrics
@@ -197,8 +200,8 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     } else if (mode === 'words') {
       text = generateRandomWords(wordOption);
     } else {
-      // Time mode
-      const neededWords = timeOption === 15 ? 40 : timeOption === 30 ? 70 : timeOption === 60 ? 130 : 250;
+      // Time mode (scales words appropriately for custom or preset seconds)
+      const neededWords = Math.max(50, Math.ceil((timeOption / 60) * 140));
       text = generateRandomWords(neededWords);
     }
 
@@ -610,21 +613,35 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
             </div>
           )}
           {mode === 'time' && (
-            <>
-              {([15, 30, 60, 120] as TimeOption[]).map(t => (
+            <div className="flex items-center gap-1 font-mono">
+              {[15, 30, 60, 120].map(t => (
                 <button
                   key={t}
                   onClick={() => setTimeOption(t)}
                   className={`px-2.5 py-1 rounded-lg transition-colors ${
                     timeOption === t
-                      ? 'bg-slate-800 text-amber-400 font-bold'
+                      ? 'bg-slate-800 text-amber-400 font-bold shadow-sm'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  {t}s
+                  {t === 60 ? '60s' : `${t}s`}
                 </button>
               ))}
-            </>
+
+              {/* Custom Timer Button */}
+              <button
+                onClick={() => setIsCustomTimerModalOpen(true)}
+                title="Set custom test duration"
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg transition-all ${
+                  ![15, 30, 60, 120].includes(timeOption)
+                    ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                }`}
+              >
+                <Timer className="w-3.5 h-3.5" />
+                <span>{![15, 30, 60, 120].includes(timeOption) ? `${timeOption}s` : 'Custom'}</span>
+              </button>
+            </div>
           )}
 
           {mode === 'words' && (
@@ -805,6 +822,16 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
         savedTexts={savedCustomTexts}
         onSaveToLibrary={onAddCustomText}
         onLoadTextForPractice={handleLoadCustomText}
+      />
+
+      {/* Custom Countdown Timer Modal */}
+      <CustomTimerModal
+        isOpen={isCustomTimerModalOpen}
+        onClose={() => setIsCustomTimerModalOpen(false)}
+        currentDuration={timeOption}
+        onSelectDuration={(duration) => {
+          setTimeOption(duration);
+        }}
       />
     </div>
   );
