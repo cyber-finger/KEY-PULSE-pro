@@ -11,7 +11,18 @@ import {
   Gauge,
   AlertCircle,
   Upload,
-  Timer
+  Timer,
+  Gamepad2,
+  Ghost,
+  Flame,
+  Eye,
+  EyeOff,
+  Crosshair,
+  BookOpen,
+  Keyboard,
+  Globe,
+  AlertTriangle,
+  CheckCircle2
 } from 'lucide-react';
 import {
   TestMode,
@@ -27,11 +38,16 @@ import {
   generateRandomWords,
   getRandomQuote,
   getRandomCode,
-  getRandomPunctuation
+  getRandomPunctuation,
+  generateRandomBengaliWords,
+  getRandomBengaliQuote,
+  getRandomSyntaxDrill,
+  generateWeakKeyDrill
 } from '../data/textLibraries';
 import { THEMES } from '../data/themes';
 import { soundSynth } from '../utils/audio';
 import { CustomTextModal } from './CustomTextModal';
+import { getGraphemeClusters, detectLanguage, isBengaliText } from '../utils/textSegmentation';
 import { CustomTimerModal } from './CustomTimerModal';
 
 interface TypingArenaProps {
@@ -45,6 +61,10 @@ interface TypingArenaProps {
   onLoadCustomText?: (content: string, title: string) => void;
   zenMode?: boolean;
   onToggleZenMode?: () => void;
+  onOpenCampaignMode?: () => void;
+  sessions?: TypingSession[];
+  onToggleGhostMode?: () => void;
+  onUpdateSettings?: (updates: Partial<AppSettings>) => void;
 }
 
 export const TypingArena: React.FC<TypingArenaProps> = ({
@@ -57,7 +77,11 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
   onAddCustomText,
   onLoadCustomText,
   zenMode = false,
-  onToggleZenMode
+  onToggleZenMode,
+  onOpenCampaignMode,
+  sessions = [],
+  onToggleGhostMode,
+  onUpdateSettings
 }) => {
   // Test configuration
   const [mode, setMode] = useState<TestMode>('time');
@@ -84,6 +108,120 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
   const [currentRawWpm, setCurrentRawWpm] = useState<number>(0);
   const [currentAccuracy, setCurrentAccuracy] = useState<number>(100);
   const [errorCount, setErrorCount] = useState<number>(0);
+
+  // Blind Touch-Typing Mode (Masked typed characters)
+  const [blindMode, setBlindMode] = useState<boolean>(() => settings.blindMode ?? false);
+
+  // Speed Burst & Combo Streak
+  const [currentCombo, setCurrentCombo] = useState<number>(0);
+  const [maxCombo, setMaxCombo] = useState<number>(0);
+  const maxComboRef = useRef<number>(0);
+  const comboMilestoneRef = useRef<number>(0);
+
+  // Automatically calculate user's top weak/missed keys from previous sessions
+  const userWeakKeys = React.useMemo(() => {
+    const errorTally: Record<string, number> = {};
+    sessions.forEach(sess => {
+      if (sess.missedCharacters) {
+        Object.entries(sess.missedCharacters).forEach(([char, count]) => {
+          const trimmed = char.trim();
+          if (trimmed && trimmed.length === 1) {
+            errorTally[trimmed.toLowerCase()] = (errorTally[trimmed.toLowerCase()] || 0) + count;
+          }
+        });
+      }
+    });
+    const sorted = Object.entries(errorTally)
+      .sort((a, b) => b[1] - a[1])
+      .map(([char]) => char);
+    return sorted.length > 0 ? sorted.slice(0, 5) : ['p', 'q', 'z', 'x', 'b'];
+  }, [sessions]);
+
+  useEffect(() => {
+    if (settings.blindMode !== undefined) {
+      setBlindMode(settings.blindMode);
+    }
+  }, [settings.blindMode]);
+
+  // Keyboard Language Auto-Detection
+  const [autoDetectKeyboardLang, setAutoDetectKeyboardLang] = useState<boolean>(
+    () => settings.autoDetectKeyboardLang !== false
+  );
+  const [detectedKeyboardLang, setDetectedKeyboardLang] = useState<'bengali' | 'english' | 'unknown'>('unknown');
+  const [langToast, setLangToast] = useState<{
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'info';
+    lang: 'bengali' | 'english' | 'unknown';
+  } | null>(null);
+  const langToastTimerRef = useRef<number | null>(null);
+  const lastNotifiedStateRef = useRef<string>('');
+
+  const showLanguageNotification = useCallback((
+    lang: 'bengali' | 'english',
+    currentCategory: string,
+    force: boolean = false
+  ) => {
+    const isBengaliTarget = currentCategory === 'bengali' || isBengaliText(targetTextRef.current);
+    const stateKey = `${lang}-${isBengaliTarget ? 'bn' : 'en'}`;
+
+    if (!force && lastNotifiedStateRef.current === stateKey) {
+      return;
+    }
+    lastNotifiedStateRef.current = stateKey;
+
+    if (langToastTimerRef.current) {
+      window.clearTimeout(langToastTimerRef.current);
+    }
+
+    let title = '';
+    let message = '';
+    let type: 'success' | 'warning' | 'info' = 'info';
+
+    if (isBengaliTarget) {
+      if (lang === 'bengali') {
+        title = 'বাংলা কীবোর্ড সক্রিয় (Bengali Keyboard Active)';
+        message = '✓ কীবোর্ড ভাষা: বাংলা শনাক্ত হয়েছে! ইউনিকোড / অভ্র দিয়ে সরাসরি টাইপ করুন।';
+        type = 'success';
+      } else {
+        title = '⚠️ ইংরেজি কীবোর্ড শনাক্ত হয়েছে!';
+        message = 'আপনি বাংলা টাইপিং মোডে আছেন। বাংলা লিখতে Avro (F12) চালু করুন বা বাংলা কীবোর্ড সিলেক্ট করুন।';
+        type = 'warning';
+      }
+    } else {
+      if (lang === 'english') {
+        title = 'ইংরেজি কীবোর্ড সক্রিয় (English Keyboard Active)';
+        message = '✓ কীবোর্ড ভাষা: ইংরেজি শনাক্ত হয়েছে! স্ট্যান্ডার্ড QWERTY টাইপিং চলছে।';
+        type = 'success';
+      } else {
+        title = '⚠️ বাংলা কীবোর্ড শনাক্ত হয়েছে!';
+        message = 'আপনি ইংরেজি টাইপিং মোডে আছেন। ইংরেজি টেস্টের জন্য কীবোর্ড লেআউট ইংরেজিতে পরিবর্তন করুন বা Avro বন্ধ করুন (F12)।';
+        type = 'warning';
+      }
+    }
+
+    setLangToast({ title, message, type, lang });
+    langToastTimerRef.current = window.setTimeout(() => {
+      setLangToast(null);
+    }, 5000);
+  }, []);
+
+  useEffect(() => {
+    if (settings.autoDetectKeyboardLang !== undefined) {
+      setAutoDetectKeyboardLang(settings.autoDetectKeyboardLang);
+    }
+  }, [settings.autoDetectKeyboardLang]);
+
+  // Re-check language compatibility whenever category or target text changes
+  useEffect(() => {
+    if (!autoDetectKeyboardLang || detectedKeyboardLang === 'unknown') return;
+    const isBengaliTarget = category === 'bengali' || isBengaliText(targetText);
+    const isMismatch = (isBengaliTarget && detectedKeyboardLang === 'english') ||
+                       (!isBengaliTarget && detectedKeyboardLang === 'bengali');
+    if (isMismatch) {
+      showLanguageNotification(detectedKeyboardLang, category, true);
+    }
+  }, [category, targetText, autoDetectKeyboardLang, detectedKeyboardLang, showLanguageNotification]);
 
   // Synchronization refs to avoid nested or re-entrant state updates
   const modeRef = useRef(mode);
@@ -136,6 +274,46 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
       }
     }
   }, [typedText]);
+
+  // Find previous best session matching current mode/category to race against
+  const currentModeString = mode === 'time' ? `${timeOption}s` : mode === 'words' ? `${wordOption}w` : mode;
+  const bestSession = React.useMemo(() => {
+    if (!sessions || sessions.length === 0) return null;
+    const matching = sessions.filter(s => {
+      const modeMatch = s.mode.toLowerCase().includes(currentModeString.toLowerCase()) ||
+        (mode === 'time' && s.mode.includes(`${timeOption}`));
+      return modeMatch && s.wpm > 0;
+    });
+    if (matching.length === 0) {
+      return [...sessions].sort((a, b) => b.wpm - a.wpm)[0] || null;
+    }
+    return matching.sort((a, b) => b.wpm - a.wpm)[0];
+  }, [sessions, currentModeString, mode, timeOption]);
+
+  const isGhostModeActive = settings.ghostMode !== false && !!bestSession;
+
+  // Real-time ghost typed position based on elapsed time and ghost session telemetry / average speed
+  const ghostIndex = React.useMemo(() => {
+    if (!isGhostModeActive || !bestSession || !isRunning || !targetText) return 0;
+    const sec = elapsedTime;
+    if (sec <= 0) return 0;
+
+    // If telemetryHistory exists with second-by-second records, use exact historical progression
+    if (bestSession.telemetryHistory && bestSession.telemetryHistory.length > 0) {
+      const closestPoint = bestSession.telemetryHistory.find(t => t.second === sec) ||
+        bestSession.telemetryHistory[Math.min(sec - 1, bestSession.telemetryHistory.length - 1)];
+
+      if (closestPoint) {
+        const charsFromWpm = Math.round((closestPoint.wpm * 5 / 60) * sec);
+        return Math.min(targetText.length, charsFromWpm);
+      }
+    }
+
+    // High accuracy linear projection using best session's overall characters/sec or CPM
+    const cps = (bestSession.cpm || (bestSession.wpm * 5)) / 60;
+    const computed = Math.round(cps * sec);
+    return Math.min(targetText.length, computed);
+  }, [isGhostModeActive, bestSession, isRunning, elapsedTime, targetText]);
 
   useEffect(() => {
     if (customTextOverride) {
@@ -192,7 +370,15 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     } else if (customTextOverride) {
       text = customTextOverride.trim();
     } else if (mode === 'quote') {
-      text = getRandomQuote().quote;
+      text = category === 'bengali' ? getRandomBengaliQuote().quote : getRandomQuote().quote;
+    } else if (category === 'bengali') {
+      text = mode === 'words'
+        ? generateRandomBengaliWords(wordOption)
+        : generateRandomBengaliWords(Math.max(40, Math.ceil((timeOption / 60) * 110)));
+    } else if (category === 'syntax-drills') {
+      text = getRandomSyntaxDrill();
+    } else if (category === 'weak-keys') {
+      text = generateWeakKeyDrill(userWeakKeys, mode === 'words' ? wordOption : Math.max(28, Math.ceil((timeOption / 60) * 70)));
     } else if (category === 'code') {
       text = getRandomCode().code.replace(/\t/g, '  ');
     } else if (category === 'punctuation') {
@@ -224,6 +410,10 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     setCurrentAccuracy(100);
     setErrorCount(0);
     errorCountRef.current = 0;
+    setCurrentCombo(0);
+    setMaxCombo(0);
+    maxComboRef.current = 0;
+    comboMilestoneRef.current = 0;
     telemetryHistoryRef.current = [];
     missedCharsRef.current = {};
 
@@ -235,7 +425,7 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     setTimeout(() => {
       inputRef.current?.focus();
     }, 50);
-  }, [mode, timeOption, wordOption, category, customTextOverride]);
+  }, [mode, timeOption, wordOption, category, customTextOverride, userWeakKeys]);
 
   useEffect(() => {
     setupNewText();
@@ -273,6 +463,7 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
       duration: actualDuration,
       characterCount: typed.length,
       errorCount: errorCountRef.current,
+      maxCombo: maxComboRef.current,
       mode: modeRef.current === 'time' ? `${timeOptionRef.current}s` : modeRef.current === 'words' ? `${wordOptionRef.current}w` : modeRef.current,
       category: categoryRef.current,
       timestamp: new Date().toISOString(),
@@ -363,11 +554,30 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
       if (addedChar === targetChar) {
         soundSynth.playKeypress(settings.soundType);
       } else {
-        soundSynth.playError();
+        if (!blindMode) {
+          soundSynth.playError();
+        } else {
+          soundSynth.playKeypress(settings.soundType);
+        }
       }
     }
 
-    // Error detection and missed char tracking
+    // Auto-detect keyboard input language from newly typed text
+    if (autoDetectKeyboardLang && val.length > 0) {
+      const addedChunk = val.slice(typedText.length) || val[val.length - 1] || val;
+      const detected = detectLanguage(addedChunk) !== 'unknown' ? detectLanguage(addedChunk) : detectLanguage(val);
+      if (detected !== 'unknown') {
+        const langChanged = detected !== detectedKeyboardLang;
+        setDetectedKeyboardLang(detected);
+        const isBengaliTarget = category === 'bengali' || isBengaliText(targetTextRef.current);
+        const isMismatch = (isBengaliTarget && detected === 'english') || (!isBengaliTarget && detected === 'bengali');
+        if (langChanged || isMismatch || val.length === 1) {
+          showLanguageNotification(detected, category, langChanged);
+        }
+      }
+    }
+
+    // Error detection, missed char tracking & combo streak
     if (val.length > typedText.length) {
       const newCharIdx = val.length - 1;
       const expected = targetText[newCharIdx];
@@ -382,6 +592,20 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
         setErrorCount(prev => prev + 1);
         errorCountRef.current += 1;
         missedCharsRef.current[expected] = (missedCharsRef.current[expected] || 0) + 1;
+        setCurrentCombo(0);
+      } else if (expected && actual === expected) {
+        const nextCombo = currentCombo + 1;
+        setCurrentCombo(nextCombo);
+        if (nextCombo > maxComboRef.current) {
+          maxComboRef.current = nextCombo;
+          setMaxCombo(nextCombo);
+        }
+        if ((nextCombo === 25 || nextCombo === 50 || nextCombo === 100 || (nextCombo > 100 && nextCombo % 50 === 0)) && nextCombo > comboMilestoneRef.current) {
+          comboMilestoneRef.current = nextCombo;
+          if (settings.soundEnabled) {
+            soundSynth.playComboMilestone(nextCombo);
+          }
+        }
       }
     }
 
@@ -406,7 +630,14 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     if (mode === 'time') {
       const remainingChars = targetTextRef.current.length - val.length;
       if (remainingChars < 70) {
-        const additionalWords = generateRandomWords(35);
+        let additionalWords = '';
+        if (category === 'bengali') {
+          additionalWords = generateRandomBengaliWords(25);
+        } else if (category === 'weak-keys') {
+          additionalWords = generateWeakKeyDrill(userWeakKeys, 20);
+        } else {
+          additionalWords = generateRandomWords(35);
+        }
         const updatedTarget = targetTextRef.current + ' ' + additionalWords;
         targetTextRef.current = updatedTarget;
         setTargetText(updatedTarget);
@@ -419,19 +650,71 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
     }
   };
 
-  // Keyboard shortcut listener (Tab + Enter or Escape)
+  // Keyboard shortcut listener (Escape for restart, Alt+B for Blind Mode, language detection)
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Detect keyboard language from keypress
+    if (autoDetectKeyboardLang && e.key && e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey) {
+      const detected = detectLanguage(e.key);
+      if (detected !== 'unknown') {
+        const langChanged = detected !== detectedKeyboardLang;
+        setDetectedKeyboardLang(detected);
+        const isBengaliTarget = category === 'bengali' || isBengaliText(targetTextRef.current);
+        const isMismatch = (isBengaliTarget && detected === 'english') || (!isBengaliTarget && detected === 'bengali');
+        if (langChanged || isMismatch) {
+          showLanguageNotification(detected, category, langChanged);
+        }
+      }
+    }
+
     if (e.key === 'Escape') {
       setupNewText();
+    } else if (e.altKey && (e.key === 'b' || e.key === 'B')) {
+      e.preventDefault();
+      const next = !blindMode;
+      setBlindMode(next);
+      onUpdateSettings?.({ blindMode: next });
     }
   };
+
+  // IME Composition end handler for Bengali phonetic (Avro / Indic IME) input
+  const handleCompositionEnd = (e: React.CompositionEvent<HTMLTextAreaElement>) => {
+    if (!autoDetectKeyboardLang) return;
+    const data = e.data || '';
+    const detected = detectLanguage(data);
+    if (detected !== 'unknown') {
+      const langChanged = detected !== detectedKeyboardLang;
+      setDetectedKeyboardLang(detected);
+      const isBengaliTarget = category === 'bengali' || isBengaliText(targetTextRef.current);
+      const isMismatch = (isBengaliTarget && detected === 'english') || (!isBengaliTarget && detected === 'bengali');
+      if (langChanged || isMismatch) {
+        showLanguageNotification(detected, category, langChanged);
+      }
+    }
+  };
+
+  // Global keydown listener for Alt+B so user can toggle Blind mode anywhere
+  useEffect(() => {
+    const handleGlobalAltKey = (e: KeyboardEvent) => {
+      if (e.altKey && (e.key === 'b' || e.key === 'B')) {
+        e.preventDefault();
+        setBlindMode(prev => {
+          const next = !prev;
+          onUpdateSettings?.({ blindMode: next });
+          return next;
+        });
+      }
+    };
+    window.addEventListener('keydown', handleGlobalAltKey);
+    return () => window.removeEventListener('keydown', handleGlobalAltKey);
+  }, [onUpdateSettings]);
 
   const focusInput = () => {
     inputRef.current?.focus();
   };
 
-  // Render character spans with guaranteed visible spaces and clean word boundaries
+  // Render character/grapheme cluster spans with guaranteed visible spaces and clean word boundaries
   const renderCharacters = () => {
+    const isBengali = category === 'bengali' || isBengaliText(targetText);
     const lines = targetText.split('\n');
     let globalIndex = 0;
 
@@ -442,30 +725,73 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
       const renderedWords = words.map((wordStr, wordIdx) => {
         const isLastWordInLine = wordIdx === words.length - 1;
 
-        // Render characters of this word
-        const charElements = wordStr.split('').map((char) => {
-          const charIndex = globalIndex++;
-          const isTyped = charIndex < typedText.length;
-          const isCurrent = charIndex === typedText.length;
-          const isCorrect = isTyped && typedText[charIndex] === char;
+        // Render grapheme clusters of this word (keeps Bengali conjuncts & matras intact)
+        const clusters = getGraphemeClusters(wordStr, isBengali ? 'bn' : 'en');
+        const charElements = clusters.map((cluster, cIdx) => {
+          const startIndex = globalIndex;
+          const endIndex = globalIndex + cluster.length;
+          globalIndex += cluster.length;
+
+          const isFullyTyped = typedText.length >= endIndex;
+          const isPartiallyTyped = typedText.length > startIndex && typedText.length < endIndex;
+          const isCurrent = typedText.length >= startIndex && typedText.length < endIndex;
+          const isUpcoming = typedText.length <= startIndex;
+
+          let isCorrect = false;
+          if (isFullyTyped) {
+            isCorrect = typedText.slice(startIndex, endIndex) === cluster.text;
+          } else if (isPartiallyTyped) {
+            const typedChunk = typedText.slice(startIndex, typedText.length);
+            isCorrect = cluster.text.startsWith(typedChunk);
+          }
+
+          // Ghost indicators
+          const isGhostReached = isGhostModeActive && startIndex < ghostIndex;
+          const isGhostCaret = isGhostModeActive && (startIndex === ghostIndex || (ghostIndex > startIndex && ghostIndex <= endIndex));
 
           let charClass = theme.textMuted;
-          if (isTyped) {
-            charClass = isCorrect ? theme.correct : theme.incorrect;
+          if (isFullyTyped) {
+            if (blindMode && !isFinished) {
+              charClass = 'text-slate-300';
+            } else {
+              charClass = isCorrect ? theme.correct : theme.incorrect;
+            }
+          } else if (isPartiallyTyped) {
+            if (blindMode && !isFinished) {
+              charClass = 'text-slate-300';
+            } else {
+              charClass = isCorrect ? 'text-amber-300 font-bold' : theme.incorrect;
+            }
           }
 
           return (
             <span
-              key={`char-${charIndex}`}
-              className={`relative inline-block transition-colors duration-75 ${charClass}`}
+              key={`c-${startIndex}-${cIdx}`}
+              className={`relative inline transition-colors duration-75 ${charClass} ${
+                isUpcoming && isGhostReached ? 'bg-cyan-500/15 text-cyan-300/80 rounded-sm' : ''
+              }`}
             >
+              {/* User active caret */}
               {isCurrent && (
                 <span
                   ref={activeCaretRef}
-                  className={`absolute left-0 bottom-0 top-0 w-[2.5px] ${theme.caret} animate-pulse pointer-events-none rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)]`}
+                  className={`absolute left-0 bottom-0 top-0 w-[2.5px] ${theme.caret} animate-pulse pointer-events-none rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)] z-10`}
                 />
               )}
-              {char}
+
+              {/* Ghost racer caret & avatar */}
+              {isGhostCaret && (
+                <span
+                  title={`Ghost PB (${bestSession?.wpm} WPM)`}
+                  className="absolute left-0 bottom-0 top-0 w-[2px] bg-cyan-400 pointer-events-none shadow-[0_0_8px_rgba(34,211,238,0.9)] opacity-85 z-20 transition-all duration-300"
+                >
+                  <span className="absolute -top-3.5 -left-1 text-[9px] font-mono leading-none text-cyan-300 bg-cyan-950/90 px-1 py-0.5 rounded border border-cyan-500/40 select-none shadow">
+                    👻
+                  </span>
+                </span>
+              )}
+
+              {cluster.text}
             </span>
           );
         });
@@ -478,22 +804,44 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
           const isSpaceCurrent = spaceIndex === typedText.length;
           const isSpaceCorrect = isSpaceTyped && typedText[spaceIndex] === ' ';
 
+          // Ghost indicators on space
+          const isSpaceGhostReached = isGhostModeActive && spaceIndex < ghostIndex;
+          const isSpaceGhostCaret = isGhostModeActive && spaceIndex === ghostIndex;
+
           let spaceClass = theme.textMuted;
           if (isSpaceTyped) {
-            spaceClass = isSpaceCorrect ? theme.correct : 'bg-rose-500/30 text-rose-400 rounded-sm';
+            if (blindMode && !isFinished) {
+              spaceClass = 'text-slate-300';
+            } else {
+              spaceClass = isSpaceCorrect ? theme.correct : 'bg-rose-500/30 text-rose-400 rounded-sm';
+            }
           }
 
           spaceElement = (
             <span
               key={`space-${spaceIndex}`}
-              className={`relative inline-block w-[0.55em] text-center select-none ${spaceClass}`}
+              className={`relative inline-block w-[0.55em] text-center select-none ${spaceClass} ${
+                !isSpaceTyped && isSpaceGhostReached ? 'bg-cyan-500/15 text-cyan-300/80 rounded-sm' : ''
+              }`}
             >
               {isSpaceCurrent && (
                 <span
                   ref={activeCaretRef}
-                  className={`absolute left-0 bottom-0 top-0 w-[2.5px] ${theme.caret} animate-pulse pointer-events-none rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)]`}
+                  className={`absolute left-0 bottom-0 top-0 w-[2.5px] ${theme.caret} animate-pulse pointer-events-none rounded-full shadow-[0_0_8px_rgba(245,158,11,0.8)] z-10`}
                 />
               )}
+
+              {isSpaceGhostCaret && (
+                <span
+                  title={`Ghost PB (${bestSession?.wpm} WPM)`}
+                  className="absolute left-0 bottom-0 top-0 w-[2px] bg-cyan-400 pointer-events-none shadow-[0_0_8px_rgba(34,211,238,0.9)] opacity-85 z-20 transition-all duration-300"
+                >
+                  <span className="absolute -top-3.5 -left-1 text-[9px] font-mono leading-none text-cyan-300 bg-cyan-950/90 px-1 py-0.5 rounded border border-cyan-500/40 select-none shadow">
+                    👻
+                  </span>
+                </span>
+              )}
+
               {isSpaceTyped && !isSpaceCorrect ? '·' : '\u00A0'}
             </span>
           );
@@ -581,6 +929,20 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
             Custom / PDF
           </button>
 
+          {onOpenCampaignMode && (
+            <button
+              onClick={onOpenCampaignMode}
+              title="Campaign Mode: Levels from Normal to Extreme Hard"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-all text-amber-400 hover:text-amber-300 hover:bg-amber-400/10 border border-amber-400/30"
+            >
+              <Gamepad2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>Campaign</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-400/20 text-amber-300">
+                Levels
+              </span>
+            </button>
+          )}
+
           {onToggleZenMode && (
             <button
               onClick={onToggleZenMode}
@@ -595,10 +957,100 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
               Zen
             </button>
           )}
+
+          {onToggleGhostMode && (
+            <button
+              onClick={onToggleGhostMode}
+              title={
+                bestSession
+                  ? `Ghost Mode: Race against your PB (${bestSession.wpm} WPM)`
+                  : 'Ghost Mode: Complete a test to establish your PB ghost racer'
+              }
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-all ${
+                isGhostModeActive
+                  ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm shadow-cyan-500/10'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+              }`}
+            >
+              <Ghost className={`w-3.5 h-3.5 ${isGhostModeActive ? 'text-cyan-400 animate-pulse' : 'text-slate-400'}`} />
+              <span>Ghost</span>
+              {bestSession && (
+                <span className={`text-[10px] font-mono px-1 py-0.2 rounded ${
+                  isGhostModeActive ? 'bg-cyan-500/30 text-cyan-200' : 'bg-slate-800 text-slate-400'
+                }`}>
+                  {bestSession.wpm}WPM
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Blind Touch-Typing Mode Toggle */}
+          <button
+            onClick={() => {
+              const next = !blindMode;
+              setBlindMode(next);
+              onUpdateSettings?.({ blindMode: next });
+            }}
+            title="Blind Mode: টাইপ করার সময় ভুল/সঠিক রঙ গোপন রেখে ১০০% ফিঙ্গার মেমোরিতে টাইপিং গঠন [Alt+B]"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-all ${
+              blindMode
+                ? 'bg-purple-500/20 text-purple-300 font-bold border border-purple-500/40 shadow-sm shadow-purple-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            {blindMode ? <EyeOff className="w-3.5 h-3.5 text-purple-400" /> : <Eye className="w-3.5 h-3.5 text-slate-400" />}
+            <span>Blind</span>
+          </button>
+
+          {/* Keyboard Auto-Detect Language Toggle */}
+          <button
+            onClick={() => {
+              const next = !autoDetectKeyboardLang;
+              setAutoDetectKeyboardLang(next);
+              onUpdateSettings?.({ autoDetectKeyboardLang: next });
+              if (next) {
+                setLangToast({
+                  title: 'কীবোর্ড অটো-ডিটেক্ট সক্রিয় (Auto-Detect ON)',
+                  message: 'টাইপ করার সাথে সাথে বাংলা বা ইংরেজি কীবোর্ড শনাক্ত করে নোটিফিকেশন প্রদর্শন করবে।',
+                  type: 'info',
+                  lang: detectedKeyboardLang === 'unknown' ? 'english' : detectedKeyboardLang
+                });
+              } else {
+                setLangToast({
+                  title: 'কীবোর্ড অটো-ডিটেক্ট নিষ্ক্রিয় (Auto-Detect OFF)',
+                  message: 'কীবোর্ড ভাষা স্বয়ংক্রিয় শনাক্তকরণ নোটিফিকেশন বন্ধ করা হয়েছে।',
+                  type: 'info',
+                  lang: 'english'
+                });
+              }
+              if (langToastTimerRef.current) window.clearTimeout(langToastTimerRef.current);
+              langToastTimerRef.current = window.setTimeout(() => setLangToast(null), 3500);
+            }}
+            title="Auto-Detect Keyboard: কীবোর্ডের ভাষা (বাংলা/ইংরেজি) স্বয়ংক্রিয়ভাবে শনাক্ত ও নোটিফিকেশন দেখাবে"
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-medium transition-all ${
+              autoDetectKeyboardLang
+                ? 'bg-blue-500/20 text-blue-300 font-bold border border-blue-500/40 shadow-sm shadow-blue-500/10'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+            }`}
+          >
+            <Globe className={`w-3.5 h-3.5 ${autoDetectKeyboardLang ? 'text-blue-400' : 'text-slate-400'}`} />
+            <span>অটো ডিটেক্ট</span>
+            {autoDetectKeyboardLang && (
+              <span className={`text-[10px] font-mono px-1.5 py-0.2 rounded font-bold ${
+                detectedKeyboardLang === 'bengali'
+                  ? 'bg-emerald-500/30 text-emerald-200 border border-emerald-500/40'
+                  : detectedKeyboardLang === 'english'
+                  ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/40'
+                  : 'bg-blue-500/30 text-blue-200'
+              }`}>
+                {detectedKeyboardLang === 'bengali' ? 'বাংলা' : detectedKeyboardLang === 'english' ? 'EN' : 'Auto'}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Dynamic sub-options based on mode */}
-        <div className="flex items-center gap-1 font-mono">
+        <div className="flex flex-wrap items-center gap-1 font-mono">
           {mode === 'custom' && (
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-mono text-amber-400 font-semibold truncate max-w-[150px] sm:max-w-xs">
@@ -662,28 +1114,71 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
             </>
           )}
 
-          {mode !== 'quote' && mode !== 'custom' && (
-            <div className="flex items-center gap-1 pl-2 border-l border-slate-800 ml-1">
+          {mode !== 'custom' && (
+            <div className="flex flex-wrap items-center gap-1 pl-2 border-l border-slate-800 ml-1">
               <button
                 onClick={() => setCategory('common-words')}
-                className={`px-2 py-1 rounded-md text-[11px] ${
-                  category === 'common-words' ? 'text-amber-400 font-semibold' : 'text-slate-500 hover:text-slate-300'
+                className={`px-2 py-0.5 rounded-lg text-[11px] transition-colors ${
+                  category === 'common-words'
+                    ? 'bg-slate-800 text-amber-400 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Standard
               </button>
               <button
+                onClick={() => setCategory('bengali')}
+                title="বাংলা টাইপিং মোড (ইউনিকোড ও অভ্র ফনেটিক অনুশীলন)"
+                className={`px-2 py-0.5 rounded-lg text-[11px] flex items-center gap-1 transition-colors ${
+                  category === 'bengali'
+                    ? 'bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <span>🇧🇩</span>
+                <span>বাংলা</span>
+              </button>
+              <button
+                onClick={() => setCategory('syntax-drills')}
+                title="ডেভেলপার স্পেশাল কোড ও সিম্বল ড্রিল (ব্র্যাকেটস, অ্যারো, সিনট্যাক্স)"
+                className={`px-2 py-0.5 rounded-lg text-[11px] flex items-center gap-1 transition-colors ${
+                  category === 'syntax-drills'
+                    ? 'bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Code className="w-3 h-3 text-cyan-400" />
+                <span>Syntax</span>
+              </button>
+              <button
+                onClick={() => setCategory('weak-keys')}
+                title={`দুর্বল অক্ষর ড্রিল (${userWeakKeys.slice(0, 4).join(', ')})`}
+                className={`px-2 py-0.5 rounded-lg text-[11px] flex items-center gap-1 transition-colors ${
+                  category === 'weak-keys'
+                    ? 'bg-rose-500/20 text-rose-300 font-bold border border-rose-500/40 shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                }`}
+              >
+                <Crosshair className="w-3 h-3 text-rose-400" />
+                <span>Weak Keys</span>
+                <span className="text-[9px] font-mono opacity-80 uppercase">({userWeakKeys.slice(0, 3).join('')})</span>
+              </button>
+              <button
                 onClick={() => setCategory('punctuation')}
-                className={`px-2 py-1 rounded-md text-[11px] ${
-                  category === 'punctuation' ? 'text-amber-400 font-semibold' : 'text-slate-500 hover:text-slate-300'
+                className={`px-2 py-0.5 rounded-lg text-[11px] transition-colors ${
+                  category === 'punctuation'
+                    ? 'bg-slate-800 text-amber-400 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Punctuation
               </button>
               <button
                 onClick={() => setCategory('code')}
-                className={`px-2 py-1 rounded-md text-[11px] ${
-                  category === 'code' ? 'text-amber-400 font-semibold' : 'text-slate-500 hover:text-slate-300'
+                className={`px-2 py-0.5 rounded-lg text-[11px] transition-colors ${
+                  category === 'code'
+                    ? 'bg-slate-800 text-amber-400 font-bold shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
                 Code
@@ -728,12 +1223,21 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
               Accuracy
             </div>
             <div className="text-2xl sm:text-3xl font-extrabold font-mono text-slate-100">
-              {currentAccuracy}
-              <span className="text-base text-slate-400 font-normal">%</span>
+              {blindMode && !isFinished ? (
+                <span className="text-purple-300 text-lg sm:text-2xl flex items-center gap-1.5 font-bold">
+                  <EyeOff className="w-4 h-4 text-purple-400" />
+                  Blind 🙈
+                </span>
+              ) : (
+                <>
+                  {currentAccuracy}
+                  <span className="text-base text-slate-400 font-normal">%</span>
+                </>
+              )}
             </div>
           </div>
           <span className="text-[10px] text-slate-500 font-mono">
-            {errorCount} err{errorCount === 1 ? '' : 's'}
+            {blindMode && !isFinished ? 'Hidden in Blind' : `${errorCount} err${errorCount === 1 ? '' : 's'}`}
           </span>
         </div>
 
@@ -753,11 +1257,247 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
         </div>
       </div>
 
+      {/* Speed Burst & Combo Streak Visual FX Banner */}
+      {currentCombo >= 10 && isRunning && (
+        <div
+          className={`flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl font-mono text-xs transition-all duration-300 animate-in zoom-in-95 ${
+            currentCombo >= 100
+              ? 'bg-gradient-to-r from-purple-950/90 via-pink-950/80 to-purple-950/90 border-2 border-purple-400 text-purple-100 shadow-[0_0_25px_rgba(168,85,247,0.35)]'
+              : currentCombo >= 50
+              ? 'bg-gradient-to-r from-amber-950/90 via-orange-950/80 to-yellow-950/90 border-2 border-amber-400 text-amber-100 shadow-[0_0_20px_rgba(245,158,11,0.35)]'
+              : currentCombo >= 25
+              ? 'bg-amber-950/60 border border-amber-500/50 text-amber-200 shadow-md shadow-amber-500/20'
+              : 'bg-slate-900/90 border border-slate-700 text-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {currentCombo >= 100 ? (
+              <Sparkles className="w-4 h-4 text-purple-300 animate-spin" />
+            ) : currentCombo >= 25 ? (
+              <Flame className="w-4 h-4 text-amber-400 animate-bounce" />
+            ) : (
+              <Zap className="w-4 h-4 text-yellow-400 animate-pulse" />
+            )}
+            <span className="font-black uppercase tracking-wider text-xs sm:text-sm">
+              {currentCombo >= 100
+                ? `💥 100x ULTRA GODLIKE STREAK! (${currentCombo} Keystrokes Flawless!)`
+                : currentCombo >= 50
+                ? `⚡ SPEED BURST! (${currentCombo} Keystrokes Combo!)`
+                : currentCombo >= 25
+                ? `🔥 ${currentCombo} Keystroke Combo Streak!`
+                : `⚡ ${currentCombo} Combo Streak`}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px]">
+            <span className="text-slate-400">Peak Streak:</span>
+            <span className="font-bold px-2 py-0.5 rounded bg-black/40 text-amber-400 border border-amber-400/30">
+              {Math.max(currentCombo, maxCombo)}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Feature Guide Ribbons: Blind Mode, Bengali Support, Syntax Drills, Weak Keys */}
+      {blindMode && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-purple-950/40 border border-purple-500/40 text-xs font-mono text-purple-200 shadow-sm">
+          <div className="flex items-center gap-2">
+            <EyeOff className="w-4 h-4 text-purple-400 shrink-0" />
+            <span className="font-bold text-purple-100">ব্লাইন্ড মোড (Blind Touch-Typing) সক্রিয়:</span>
+            <span className="text-purple-300/80 hidden sm:inline">
+              স্ক্রিনে লাল/সবুজ সংকেত ছাড়া ১০০% অনুভূতি ও মাসল মেমরিতে টাইপ করুন। টেস্ট শেষ হলে ফলাফল দেখানো হবে।
+            </span>
+          </div>
+          <span className="text-[10px] text-purple-300 bg-purple-900/50 px-2 py-0.5 rounded border border-purple-500/30 shrink-0">
+            [Alt+B] Toggle
+          </span>
+        </div>
+      )}
+
+      {category === 'bengali' && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-emerald-950/40 border border-emerald-500/40 text-xs font-mono text-emerald-200 shadow-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-base">🇧🇩</span>
+            <span className="font-bold text-emerald-100">বাংলা টাইপিং মোড:</span>
+            <span className="text-emerald-300/80">
+              ইউনিকোড বা অভ্র ফনেটিক (Avro Phonetic) কীবোর্ড দিয়ে সরাসরি টাইপ করুন (উদা: 'a m i' = 'আমি', 'b a n g l a' = 'বাংলা')।
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30 shrink-0">
+            Avro / Unicode
+          </span>
+        </div>
+      )}
+
+      {category === 'syntax-drills' && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/40 text-xs font-mono text-cyan-200 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Code className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span className="font-bold text-cyan-100">ডেভেলপার কোড ও সিনট্যাক্স ড্রিল:</span>
+            <span className="text-cyan-300/80">
+              ব্র্যাকেটস {'{ }'}, স্কয়ার ব্র্যাকেট {'[ ]'}, অ্যারো {'=>'}, লজিক {'&&, ||'}, ও সেমিকোলন {';'} দ্রুত টাইপ করার অনুশীলন।
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30 shrink-0">
+            Syntax Drills
+          </span>
+        </div>
+      )}
+
+      {category === 'weak-keys' && (
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-xs font-mono text-rose-200 shadow-sm">
+          <div className="flex items-center gap-2">
+            <Crosshair className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="font-bold text-rose-100">দুর্বল অক্ষর অটো-ড্রিল (Weak Key Auto-Drill):</span>
+            <span className="text-rose-300/80">
+              আপনার কীবোর্ড বিশ্লেষণে চিহ্নিত দুর্বল কীসমূহ ({userWeakKeys.map(k => k.toUpperCase()).join(', ')}) জোরদার করার বিশেষ সেশন।
+            </span>
+          </div>
+          <span className="px-2 py-0.5 rounded text-[10px] bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30 shrink-0">
+            Targeted Keys
+          </span>
+        </div>
+      )}
+
+      {/* Ghost Racer Live Status & Delta Bar */}
+      {isGhostModeActive && bestSession && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-2xl bg-cyan-950/40 border border-cyan-500/30 text-xs font-mono text-cyan-200">
+          <div className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-5 h-5 rounded-lg bg-cyan-500/20 text-cyan-300">
+              👻
+            </span>
+            <span className="font-bold text-cyan-100">Ghost Racer:</span>
+            <span className="text-cyan-300">Your PB ({bestSession.wpm} WPM · {bestSession.accuracy}% acc)</span>
+          </div>
+
+          <div className="flex items-center gap-3">
+            {isRunning && (
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-slate-400">Position Delta:</span>
+                {typedText.length >= ghostIndex ? (
+                  <span className="px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 font-bold border border-emerald-500/30">
+                    +{typedText.length - ghostIndex} chars ahead (Winning! 🏆)
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 font-bold border border-rose-500/30">
+                    -{ghostIndex - typedText.length} chars behind
+                  </span>
+                )}
+              </div>
+            )}
+            {!isRunning && (
+              <span className="text-[11px] text-cyan-400/80">
+                Start typing to race against your ghost!
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Keyboard Language Notification Toast */}
+      {langToast && (
+        <div
+          role="alert"
+          className={`flex items-start justify-between gap-3 p-3.5 sm:p-4 rounded-2xl border shadow-xl transition-all duration-300 animate-in slide-in-from-top-2 fade-in ${
+            langToast.type === 'warning'
+              ? 'bg-amber-950/85 border-amber-500/80 text-amber-100 shadow-amber-950/40'
+              : langToast.type === 'success'
+              ? 'bg-emerald-950/85 border-emerald-500/80 text-emerald-100 shadow-emerald-950/40'
+              : 'bg-cyan-950/85 border-cyan-500/80 text-cyan-100 shadow-cyan-950/40'
+          } backdrop-blur-md`}
+        >
+          <div className="flex items-start gap-3">
+            <div className={`p-2 rounded-xl shrink-0 mt-0.5 ${
+              langToast.type === 'warning'
+                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                : langToast.type === 'success'
+                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
+                : 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40'
+            }`}>
+              {langToast.type === 'warning' ? (
+                <AlertTriangle className="w-5 h-5 text-amber-300" />
+              ) : langToast.type === 'success' ? (
+                <CheckCircle2 className="w-5 h-5 text-emerald-300" />
+              ) : (
+                <Globe className="w-5 h-5 text-cyan-300" />
+              )}
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-bold text-sm sm:text-base">
+                  {langToast.title}
+                </span>
+                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                  langToast.type === 'warning'
+                    ? 'bg-amber-500/30 text-amber-200 border border-amber-500/40'
+                    : 'bg-emerald-500/30 text-emerald-200 border border-emerald-500/40'
+                }`}>
+                  {langToast.lang === 'bengali' ? '🇧🇩 বাংলা' : '🇬🇧 English'}
+                </span>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-200/90 leading-relaxed font-sans">
+                {langToast.message}
+              </p>
+
+              {/* Action buttons if mismatch occurs */}
+              {langToast.type === 'warning' && (
+                <div className="pt-1 flex flex-wrap items-center gap-2">
+                  {category === 'bengali' ? (
+                    <>
+                      <button
+                        onClick={() => {
+                          setCategory('common-words');
+                          setLangToast(null);
+                        }}
+                        className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 hover:text-amber-200 border border-amber-500/30 text-xs font-semibold transition-colors"
+                      >
+                        Switch to English Test
+                      </button>
+                      <span className="text-[11px] text-amber-300/80">
+                        Avro ব্যবহারকারীদের জন্য: <strong>F12</strong> চাপুন
+                      </span>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setCategory('bengali');
+                        setLangToast(null);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 hover:text-emerald-200 border border-emerald-500/30 text-xs font-semibold transition-colors"
+                    >
+                      বাংলা টেস্টে যান 🇧🇩
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <button
+            onClick={() => setLangToast(null)}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-white/10 transition-colors shrink-0 text-sm"
+            title="Dismiss notification"
+            aria-label="Dismiss notification"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* Main Typing Surface */}
       <div
         ref={arenaContainerRef}
         onClick={focusInput}
-        className={`relative p-6 sm:p-8 rounded-3xl ${theme.cardBg} border border-slate-800/80 cursor-text shadow-2xl transition-all min-h-[220px] max-h-[280px] overflow-y-auto scroll-smooth flex flex-col justify-start`}
+        className={`relative p-6 sm:p-8 rounded-3xl ${theme.cardBg} cursor-text shadow-2xl transition-all duration-300 min-h-[220px] max-h-[280px] overflow-y-auto scroll-smooth flex flex-col justify-start ${
+          currentCombo >= 100
+            ? 'border-2 border-purple-400 shadow-[0_0_35px_rgba(168,85,247,0.35)]'
+            : currentCombo >= 50
+            ? 'border-2 border-amber-400 shadow-[0_0_25px_rgba(245,158,11,0.35)]'
+            : currentCombo >= 25
+            ? 'border border-amber-500/50 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+            : 'border border-slate-800/80'
+        }`}
       >
         {/* Invisible proxy textarea for desktop and mobile keyboard capture */}
         <textarea
@@ -765,6 +1505,7 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
           value={typedText}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
+          onCompositionEnd={handleCompositionEnd}
           autoCapitalize="off"
           autoComplete="off"
           autoCorrect="off"
@@ -775,7 +1516,11 @@ export const TypingArena: React.FC<TypingArenaProps> = ({
 
         {/* Text Display */}
         <div
-          className={`font-mono leading-relaxed select-none tracking-wide text-lg sm:text-2xl whitespace-pre-wrap break-normal ${
+          className={`${
+            category === 'bengali'
+              ? 'font-sans tracking-normal leading-relaxed text-xl sm:text-2xl'
+              : 'font-mono leading-relaxed tracking-wide text-lg sm:text-2xl'
+          } select-none whitespace-pre-wrap break-normal ${
             settings.fontSize === 'large'
               ? 'text-xl sm:text-3xl leading-loose'
               : settings.fontSize === 'small'

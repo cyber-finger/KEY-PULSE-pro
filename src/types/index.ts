@@ -1,7 +1,7 @@
 export type TestMode = 'time' | 'words' | 'quote' | 'custom';
 export type TimeOption = number;
 export type WordOption = 25 | 50 | 100;
-export type TextCategory = 'common-words' | 'quotes' | 'code' | 'punctuation' | 'custom';
+export type TextCategory = 'common-words' | 'quotes' | 'code' | 'punctuation' | 'bengali' | 'syntax-drills' | 'weak-keys' | 'custom';
 
 export interface SecondTelemetry {
   second: number;
@@ -22,6 +22,9 @@ export interface TypingSession {
   duration: number; // in seconds
   characterCount: number;
   errorCount: number;
+  maxCombo?: number;
+  errorTarget?: number | 'off';
+  targetMet?: boolean;
   mode: string;
   category: string;
   timestamp: string; // ISO string
@@ -111,4 +114,11 @@ export interface AppSettings {
   quickRestartKey: boolean;
   fontSize: 'small' | 'medium' | 'large';
   zenMode?: boolean;
+  ghostMode?: boolean;
+  blindMode?: boolean;
+  comboFx?: boolean;
+  autoDetectKeyboardLang?: boolean;
+  campaignErrorTarget?: number | 'off';
+  errorTarget?: number | 'off';
+  strictErrorMode?: boolean;
 }

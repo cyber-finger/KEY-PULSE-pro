@@ -96,6 +96,70 @@ class SoundSynthesizer {
       // ignore
     }
   }
+
+  playVictory() {
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6 arpeggio
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const noteStart = now + idx * 0.08;
+
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(freq, noteStart);
+
+        gain.gain.setValueAtTime(0.08, noteStart);
+        gain.gain.exponentialRampToValueAtTime(0.001, noteStart + 0.25);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(noteStart);
+        osc.stop(noteStart + 0.28);
+      });
+    } catch {
+      // ignore
+    }
+  }
+
+  playComboMilestone(milestone: number = 25) {
+    try {
+      this.initContext();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      // High pitch quick powerup chord (e.g., E5, G#5, B5, E6 depending on combo)
+      const baseFreq = milestone >= 100 ? 659.25 : milestone >= 50 ? 587.33 : 523.25;
+      const chords = [baseFreq, baseFreq * 1.25, baseFreq * 1.5];
+
+      chords.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const startTime = now + idx * 0.05;
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, startTime);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.15, startTime + 0.12);
+
+        gain.gain.setValueAtTime(0.09, startTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(startTime);
+        osc.stop(startTime + 0.16);
+      });
+    } catch {
+      // ignore
+    }
+  }
 }
 
 export const soundSynth = new SoundSynthesizer();

@@ -16,15 +16,16 @@ import {
   Settings as SettingsIcon,
   Sun,
   Moon,
-  Medal
+  Medal,
+  Gamepad2
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { ThemeName } from '../types';
 import { THEMES } from '../data/themes';
 
 interface NavbarProps {
-  activeTab: 'test' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings';
-  setActiveTab: (tab: 'test' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings') => void;
+  activeTab: 'test' | 'campaign' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings';
+  setActiveTab: (tab: 'test' | 'campaign' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings') => void;
   currentTheme: ThemeName;
   setTheme: (theme: ThemeName) => void;
   soundEnabled: boolean;
@@ -96,6 +97,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <Keyboard className="w-4 h-4" />
               Test
+            </button>
+            <button
+              onClick={() => setActiveTab('campaign')}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                activeTab === 'campaign'
+                  ? 'bg-slate-800 text-amber-400 shadow-sm'
+                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+              }`}
+            >
+              <Gamepad2 className="w-4 h-4 text-amber-400" />
+              <span>Campaign</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30 hidden lg:inline">
+                Game
+              </span>
             </button>
             <button
               onClick={() => setActiveTab('stats')}
@@ -287,6 +302,23 @@ export const Navbar: React.FC<NavbarProps> = ({
           >
             <Keyboard className="w-4 h-4" />
             Typing Test
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('campaign');
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+              activeTab === 'campaign' ? 'bg-slate-800 text-amber-400 font-medium' : 'text-slate-300'
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <Gamepad2 className="w-4 h-4 text-amber-400" />
+              <span>Campaign (গেম মোড)</span>
+            </div>
+            <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-400/20 text-amber-300 border border-amber-400/30">
+              Levels
+            </span>
           </button>
           <button
             onClick={() => {

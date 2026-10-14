@@ -171,3 +171,163 @@ export function getRandomPunctuation(): string {
   const index = Math.floor(Math.random() * PUNCTUATION_TEXTS.length);
   return PUNCTUATION_TEXTS[index];
 }
+
+// ============================================================================
+// BENGALI TEXT LIBRARY (বাংলা শব্দমালা ও বিখ্যাত বাণী)
+// ============================================================================
+export const BENGALI_WORDS: string[] = [
+  'আমি', 'তুমি', 'সে', 'আমরা', 'তারা', 'বই', 'কলম', 'দেশ', 'ভাষা', 'বাংলা',
+  'জীবন', 'মানুষ', 'সময়', 'স্বপ্ন', 'দিন', 'রাত', 'আলো', 'বাতাস', 'নদী', 'আকাশ',
+  'সূর্য', 'বৃষ্টি', 'মাটি', 'জল', 'ফুল', 'পাখি', 'গান', 'আনন্দ', 'বন্ধু', 'পথ',
+  'কথা', 'কাজ', 'মন', 'চোখ', 'হাত', 'ভালোবাসা', 'শান্তি', 'সুন্দর', 'সত্য', 'জ্ঞান',
+  'শক্তি', 'চেষ্টা', 'সাফল্য', 'শিক্ষা', 'সাহস', 'ইতিহাস', 'সংস্কৃতি', 'স্মৃতি', 'স্বাধীনতা', 'মুক্ত',
+  'উজ্জ্বল', 'নীরব', 'গভীর', 'মধুর', 'সহজ', 'কঠিন', 'নতুন', 'পুরাতন', 'প্রথম', 'শেষ',
+  'ভবিষ্যৎ', 'অতীত', 'বর্তমান', 'হৃদয়', 'জগৎ', 'অমর', 'বিজয়', 'আবেগ', 'চিন্তা', 'উন্নয়ন',
+  'প্রকৃতি', 'সাগর', 'পাহাড়', 'অরণ্য', 'মায়া', 'শ্রদ্ধা', 'বিপ্লব', 'গর্ব', 'সাধনা', 'লক্ষ্য',
+  'গন্তব্য', 'দৃষ্টি', 'আশা', 'ভরসা', 'বিশ্বাস', 'ঐক্য', 'সংগ্রাম', 'সাধক', 'সৃষ্টি', 'মহৎ',
+  'অসীম', 'প্রভাত', 'সন্ধ্যা', 'তারা', 'চাঁদ', 'মহাবিশ্ব', 'বিজ্ঞান', 'প্রযুক্তি', 'যন্ত্র', 'কীবোর্ড',
+  'টাইপিং', 'গতি', 'নির্ভুলতা', 'অনুশীলন', 'অভিজ্ঞতা', 'দক্ষতা', 'মেধা', 'সততা', 'আদর্শ', 'চেতনা',
+  'ঐতিহ্য', 'অনুপ্রেরণা', 'উৎসাহ', 'সংকল্প', 'দৃঢ়তা', 'অধ্যাবসায়', 'প্রেরণা', 'সতর্কতা', 'সফলতা', 'ধৈর্য',
+  'বাংলাদেশ', 'সোনার', 'মাতৃভাষা', 'একুশে', 'শহীদ', 'বর্ণমালা', 'স্বরবর্ণ', 'ব্যঞ্জনবর্ণ', 'স্বরচিহ্ন',
+  'কবিতা', 'গল্প', 'উপন্যাস', 'নাটক', 'সাহিত্য', 'চিত্রকলা', 'সংগীত', 'সুর', 'রাগ', 'তাল',
+  'হেমন্ত', 'শরৎ', 'বসন্ত', 'বর্ষা', 'গ্রীষ্ম', 'শীত', 'শিশির', 'কুয়াশা', 'রোদ্দুর', 'মেঘমালা',
+  'নাবিক', 'যাত্রী', 'অভিযান', 'পাহাড়ি', 'ঝরনা', 'স্রোত', 'কলরব', 'সবুজ', 'শ্যামল', 'পল্লী'
+];
+
+export const BENGALI_QUOTES: QuoteItem[] = [
+  {
+    id: 'bq1',
+    quote: "যদি তোর ডাক শুনে কেউ না আসে তবে একলা চলো রে। একলা চলো, একলা চলো, একলা চলো রে।",
+    author: "রবীন্দ্রনাথ ঠাকুর",
+    length: "short"
+  },
+  {
+    id: 'bq2',
+    quote: "গাহি সাম্যের গান— মানুষের চেয়ে বড় কিছু নাই, নহে কিছু মহীয়ান। নাই দেশ-কাল-পাত্রের ভেদ, অভেদ ধর্মজাতি।",
+    author: "কাজী নজরুল ইসলাম",
+    length: "medium"
+  },
+  {
+    id: 'bq3',
+    quote: "চিত্ত যেথা ভয়শূন্য, উচ্চ যেথা শির, জ্ঞান যেথা মুক্ত, যেথা গৃহের প্রাচীর আপন প্রাঙ্গণতলে দিবসশর্বরী বসুধারে রাখে নাই খণ্ড ক্ষুদ্র করি।",
+    author: "রবীন্দ্রনাথ ঠাকুর",
+    length: "long"
+  },
+  {
+    id: 'bq4',
+    quote: "এ বিশ্বকে এ শিশুর বাসযোগ্য করে যাব আমি— নবজাতকের কাছে এ আমার দৃঢ় অঙ্গীকার।",
+    author: "সুকান্ত ভট্টাচার্য",
+    length: "short"
+  },
+  {
+    id: 'bq5',
+    quote: "বাংলার মুখ আমি দেখিয়াছি, তাই আমি পৃথিবীর রূপ খুঁজিতে যাই না আর। অন্ধকারে জেগে ওঠে নদীর ওপার।",
+    author: "জীবনানন্দ দাশ",
+    length: "short"
+  },
+  {
+    id: 'bq6',
+    quote: "মরিতে চাহি না আমি সুন্দর ভুবনে, মানবের মাঝে আমি বাঁচিবারে চাই। এই সূর্যকরে এই পুষ্পিত কাননে জীবন্ত হৃদয়-মাঝে যদি স্থান পাই।",
+    author: "রবীন্দ্রনাথ ঠাকুর",
+    length: "medium"
+  },
+  {
+    id: 'bq7',
+    quote: "বল বীর— বল উন্নত মম শির! শির নেহারি আমারি, নতশির ওই শিখর হিমাদ্রির! বল বীর— বল মহাবিশ্বের মহাকাশ ফাড়ি।",
+    author: "কাজী নজরুল ইসলাম",
+    length: "medium"
+  },
+  {
+    id: 'bq8',
+    quote: "মেঘ দেখে কেউ করিস নে ভয়, আড়ালে তার সূর্য হাসে। হারা শশীর হারা হাসি অন্ধকারেই ফিরে আসে।",
+    author: "রবীন্দ্রনাথ ঠাকুর",
+    length: "short"
+  },
+  {
+    id: 'bq9',
+    quote: "আমারে তুমি অশেষ করেছ, এমনি লীলা তব— ফুরায়ে ফেলে আবার ভরেছ জীবন নব নব।",
+    author: "রবীন্দ্রনাথ ঠাকুর",
+    length: "short"
+  },
+  {
+    id: 'bq10',
+    quote: "মোদের গরব, মোদের আশা, আ মরি বাংলা ভাষা! তোমার কোলে, তোমার বোলে, কতই শান্তি ভালোবাসা।",
+    author: "অতুলপ্রসাদ সেন",
+    length: "medium"
+  }
+];
+
+export function generateRandomBengaliWords(count: number): string {
+  const words: string[] = [];
+  let prevWord = '';
+  for (let i = 0; i < count; i++) {
+    let rand = BENGALI_WORDS[Math.floor(Math.random() * BENGALI_WORDS.length)];
+    while (rand === prevWord) {
+      rand = BENGALI_WORDS[Math.floor(Math.random() * BENGALI_WORDS.length)];
+    }
+    words.push(rand);
+    prevWord = rand;
+  }
+  return words.join(' ');
+}
+
+export function getRandomBengaliQuote(): QuoteItem {
+  const index = Math.floor(Math.random() * BENGALI_QUOTES.length);
+  return BENGALI_QUOTES[index];
+}
+
+// ============================================================================
+// DEVELOPER SPECIAL SYNTAX DRILLS (প্রোগ্রামারদের জন্য স্পেশাল কোড ও সিম্বল ড্রিল)
+// ============================================================================
+export const DEVELOPER_SYNTAX_DRILLS: string[] = [
+  "const handleFetch = async (endpoint: string, options: RequestInit = {}): Promise<Response> => {\n  const token = localStorage.getItem('token');\n  const headers = { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) };\n  return await fetch(`/api/v1/${endpoint}`, { ...options, headers });\n};",
+  "interface ApiResponse<T> {\n  success: boolean;\n  status: 200 | 400 | 401 | 500;\n  data?: T;\n  error?: { code: string; message: string; details?: string[] };\n}\ntype HandlerFn<T, R> = (input: T, ctx?: Record<string, unknown>) => Promise<ApiResponse<R>>;",
+  "const [query, setQuery] = useState<string>('');\nconst filteredUsers = useMemo(() => {\n  if (!query.trim()) return users;\n  return users.filter(u => u.name.toLowerCase().includes(query.toLowerCase()) || u.tags?.some(t => t === query));\n}, [users, query]);",
+  "def evaluate_telemetry(history, target_wpm=60, min_acc=95.0):\n    valid_runs = [run for run in history if run['wpm'] >= target_wpm and run['acc'] >= min_acc]\n    return {'cleared': len(valid_runs) > 0, 'count': len(valid_runs), 'best': max((r['wpm'] for r in history), default=0)}",
+  "const matrix: number[][] = Array.from({ length: rows }, (_, r) =>\n  Array.from({ length: cols }, (_, c) => (r === c ? 1 : (r + c) % 2 === 0 ? 0 : -1))\n);\nconst flat = matrix.flatMap((row, idx) => row.map(val => ({ row: idx, val, active: val > 0 })));",
+  "SELECT u.id, u.email, COUNT(s.id) AS total_sessions, AVG(s.wpm) AS avg_wpm\nFROM users u\nLEFT JOIN typing_sessions s ON s.user_id = u.id\nWHERE s.created_at >= NOW() - INTERVAL '30 days' AND s.accuracy >= 90.0\nGROUP BY u.id, u.email HAVING COUNT(s.id) >= 10 ORDER BY avg_wpm DESC LIMIT 50;",
+  "{ [ ( < x != null && y !== undefined ? (a * (b + c) / 2) : [1, 2, 3] > ) ] } => { return `val_${id}`; };\nconst symbols = ['{', '}', '[', ']', '(', ')', '<', '>', '&&', '||', '=>', '===', '!==', '?:', ';', ':'];",
+  "export const useDebounce = <T,>(value: T, delay: number = 300): T => {\n  const [debouncedValue, setDebouncedValue] = useState<T>(value);\n  useEffect(() => {\n    const handler = setTimeout(() => setDebouncedValue(value), delay);\n    return () => clearTimeout(handler);\n  }, [value, delay]);\n  return debouncedValue;\n};",
+  "class BinarySearchTree<T> {\n  private root: TreeNode<T> | null = null;\n  insert(val: T): void {\n    this.root = this.insertNode(this.root, val);\n  }\n  find(target: T): boolean {\n    let curr = this.root;\n    while (curr) {\n      if (curr.val === target) return true;\n      curr = target < curr.val ? curr.left : curr.right;\n    }\n    return false;\n  }\n}",
+  "<div className=\"flex items-center justify-between gap-4 p-4 rounded-2xl bg-slate-900 border border-slate-800\">\n  <button onClick={() => setStreak(s => s + 1)} className={`px-4 py-2 font-mono font-bold ${isActive ? 'bg-amber-400 text-black' : 'text-slate-400'}`}>\n    {`Active Streak: ${streak}`}\n  </button>\n</div>"
+];
+
+export function getRandomSyntaxDrill(): string {
+  const index = Math.floor(Math.random() * DEVELOPER_SYNTAX_DRILLS.length);
+  return DEVELOPER_SYNTAX_DRILLS[index];
+}
+
+// ============================================================================
+// WEAK KEY DRILL GENERATOR (দুর্বল অক্ষর অনুশীলন ড্রিল)
+// ============================================================================
+export function generateWeakKeyDrill(weakKeys: string[], wordCount: number = 28): string {
+  if (!weakKeys || weakKeys.length === 0) {
+    weakKeys = ['p', 'q', 'z', 'x', 'b', ';'];
+  }
+
+  // Filter dictionary words that contain at least one of the weak keys
+  const normalizedKeys = weakKeys.map(k => k.toLowerCase());
+  const matchingWords = COMMON_WORDS.filter(w =>
+    normalizedKeys.some(k => w.toLowerCase().includes(k))
+  );
+
+  // Custom targeted patterns that force repeated muscle memory finger reaches for weak keys
+  const drillPatterns: string[] = [];
+  normalizedKeys.forEach(k => {
+    drillPatterns.push(
+      `${k}${k} ${k}a${k} ${k}e${k} ${k}o${k}`,
+      `a${k} e${k} i${k} o${k} u${k}`,
+      `${k}ing ${k}ed ${k}er ${k}ly`
+    );
+  });
+
+  const pool = [...matchingWords, ...drillPatterns];
+  const drillResult: string[] = [];
+
+  for (let i = 0; i < wordCount; i++) {
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    drillResult.push(picked);
+  }
+
+  return drillResult.join(' ');
+}

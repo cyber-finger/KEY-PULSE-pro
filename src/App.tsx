@@ -11,10 +11,12 @@ import { CloudBackupModal } from './components/CloudBackupModal';
 import { SettingsModal } from './components/SettingsModal';
 import { LeftAdsterraSidebar, RightAdsterraSidebar, MobileAdsterraBanner } from './components/AdsterraSidebars';
 import { NativeBannerAd } from './components/NativeBannerAd';
+import { CampaignMode } from './components/CampaignMode';
 import { TypingSession, CustomText, AppSettings, ThemeName, Badge } from './types';
 import { storageService } from './services/storageService';
 import { evaluateBadges } from './data/achievements';
 import { THEMES } from './data/themes';
+import { generateWeakKeyDrill } from './data/textLibraries';
 
 const DEFAULT_SETTINGS: AppSettings = {
   soundEnabled: true,
@@ -25,14 +27,20 @@ const DEFAULT_SETTINGS: AppSettings = {
   showLiveCpm: true,
   showLiveAccuracy: true,
   quickRestartKey: true,
-  fontSize: 'medium'
+  fontSize: 'medium',
+  ghostMode: true,
+  blindMode: false,
+  comboFx: true,
+  autoDetectKeyboardLang: true,
+  campaignErrorTarget: 0,
+  strictErrorMode: false
 };
 
 const LOCAL_STORAGE_SETTINGS = 'keypulse_settings_v1';
 
 function MainApp() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<'test' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings'>('test');
+  const [activeTab, setActiveTab] = useState<'test' | 'campaign' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings'>('test');
   const [settings, setSettings] = useState<AppSettings>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_STORAGE_SETTINGS);
@@ -155,6 +163,14 @@ function MainApp() {
     setCustomPracticeText(null);
   };
 
+  const handlePracticeWeakKeys = (keys: string[]) => {
+    const drillText = generateWeakKeyDrill(keys, 32);
+    setCustomPracticeText(drillText);
+    setCustomPracticeTitle(`Weak Keys Auto-Drill (${keys.map(k => k.toUpperCase()).join(', ')})`);
+    setCompletedSession(null);
+    setActiveTab('test');
+  };
+
   const handlePinBadge = async (badgeId: string) => {
     await storageService.setPinnedBadge(badgeId);
   };
@@ -237,6 +253,7 @@ function MainApp() {
                   setCompletedSession(null);
                   setActiveTab('profile');
                 }}
+                onPracticeWeakKeys={handlePracticeWeakKeys}
               />
             ) : (
               <div className="space-y-4">
@@ -275,10 +292,24 @@ function MainApp() {
                     setZenMode(next);
                     handleUpdateSettings({ zenMode: next });
                   }}
+                  onOpenCampaignMode={() => setActiveTab('campaign')}
+                  sessions={sessions}
+                  onToggleGhostMode={() => {
+                    handleUpdateSettings({ ghostMode: !settings.ghostMode });
+                  }}
+                  onUpdateSettings={handleUpdateSettings}
                 />
               </div>
             )}
           </div>
+        )}
+
+        {activeTab === 'campaign' && (
+          <CampaignMode
+            settings={settings}
+            onUpdateSettings={handleUpdateSettings}
+            onExitToStandardTest={() => setActiveTab('test')}
+          />
         )}
 
         {activeTab === 'stats' && (
@@ -286,15 +317,7 @@ function MainApp() {
             sessions={sessions}
             onDeleteSession={handleDeleteSession}
             onExportBackup={() => setCloudBackupOpen(true)}
-            onPracticeKeys={(keys) => {
-              const sampleWords = ['packet', 'query', 'syntax', 'browse', 'keyboard', 'focus', 'accuracy', 'velocity', 'system', 'zenith', 'pulse', 'effort'];
-              const relevant = sampleWords.filter(w => keys.some(k => w.toLowerCase().includes(k.toLowerCase())));
-              const drillText = (relevant.length >= 4 ? relevant : sampleWords).join(' ') + ' ' + keys.map(k => `${k}${k} ${k}e ${k}a`).join(' ');
-              setCustomPracticeText(drillText);
-              setCustomPracticeTitle(`Target Drill (${keys.map(k => k.toUpperCase()).join(', ')})`);
-              setCompletedSession(null);
-              setActiveTab('test');
-            }}
+            onPracticeKeys={handlePracticeWeakKeys}
           />
         )}
 

@@ -16,7 +16,14 @@ import {
   Sparkles,
   Award,
   Medal,
-  Crown
+  Crown,
+  Crosshair,
+  AlertTriangle,
+  CheckCircle2,
+  ShieldCheck,
+  Flame,
+  EyeOff,
+  Code
 } from 'lucide-react';
 import { TypingSession, LeaderboardEntry, Badge } from '../types';
 import { BADGE_TIER_CONFIG } from '../data/achievements';
@@ -31,6 +38,7 @@ interface SessionResultsProps {
   onViewStats: () => void;
   onViewLeaderboard: () => void;
   onViewProfile?: () => void;
+  onPracticeWeakKeys?: (keys: string[]) => void;
 }
 
 export const SessionResults: React.FC<SessionResultsProps> = ({
@@ -40,7 +48,8 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
   onNextTest,
   onViewStats,
   onViewLeaderboard,
-  onViewProfile
+  onViewProfile,
+  onPracticeWeakKeys
 }) => {
   const { user } = useAuth();
   const [copied, setCopied] = useState(false);
@@ -195,7 +204,10 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
 
     ctx.fillStyle = '#94a3b8';
     ctx.font = '20px monospace';
-    ctx.fillText(`TEST MODE: ${session.mode.toUpperCase()} · ${new Date(session.timestamp).toLocaleDateString()}`, 80, 130);
+    const errTargetText = session.errorTarget !== undefined && session.errorTarget !== 'off'
+      ? ` · TARGET: ${session.errorTarget} ERR (${session.targetMet ? 'MET' : 'MISSED'})`
+      : '';
+    ctx.fillText(`TEST MODE: ${session.mode.toUpperCase()}${errTargetText} · ${new Date(session.timestamp).toLocaleDateString()}`, 80, 130);
 
     // Main Score Hero
     ctx.fillStyle = '#ffffff';
@@ -364,6 +376,63 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
         </div>
       </div>
 
+      {/* Error Target Assessment Banner (ইরোর টার্গেট মূল্যায়ন) */}
+      {session.errorTarget !== undefined && session.errorTarget !== 'off' && (
+        <div className={`p-5 rounded-3xl border-2 transition-all shadow-xl ${
+          session.targetMet
+            ? 'bg-gradient-to-r from-emerald-950/70 via-slate-900 to-slate-950 border-emerald-400/80 shadow-emerald-950/30'
+            : 'bg-gradient-to-r from-rose-950/70 via-slate-900 to-slate-950 border-rose-500/60 shadow-rose-950/30'
+        }`}>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 text-center sm:text-left">
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-lg ${
+                session.targetMet
+                  ? 'bg-emerald-400 text-slate-950 shadow-emerald-400/20'
+                  : 'bg-rose-500 text-slate-950 shadow-rose-500/20'
+              }`}>
+                {session.targetMet ? (
+                  <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
+                ) : (
+                  <AlertTriangle className="w-6 h-6 stroke-[2.5]" />
+                )}
+              </div>
+              <div>
+                <div className={`flex items-center justify-center sm:justify-start gap-1.5 text-xs font-mono font-bold uppercase tracking-wider ${
+                  session.targetMet ? 'text-emerald-400' : 'text-rose-400'
+                }`}>
+                  <Crosshair className="w-3.5 h-3.5" />
+                  {session.targetMet ? 'Error Target Met · টার্গেট সফল!' : 'Error Target Missed · টার্গেট মিস'}
+                </div>
+                <h3 className="text-base font-black text-slate-100 mt-0.5">
+                  {session.targetMet
+                    ? session.errorTarget === 0
+                      ? 'Flawless Zero-Error Perfection! (০টি ভুল - নিখুঁত টাইপিং)'
+                      : `Strict Target Passed: ${session.errorCount} / ${session.errorTarget} max errors`
+                    : `Breached Target: ${session.errorCount} errors made (Target was ${session.errorTarget} max)`}
+                </h3>
+                <p className="text-xs text-slate-300 font-mono mt-0.5">
+                  {session.targetMet
+                    ? 'Training with 0–1 error targets builds real muscle memory without hesitation. Your typing accuracy discipline is elite!'
+                    : 'Practicing as close to 0 errors as possible trains your brain to type with zero typos. Try slowing down slightly for 100% precision.'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={onRestart}
+              className={`px-4 py-2 rounded-xl font-bold text-xs font-mono transition-all shadow whitespace-nowrap active:scale-95 flex items-center gap-1.5 ${
+                session.targetMet
+                  ? 'bg-emerald-400 hover:bg-emerald-300 text-slate-950'
+                  : 'bg-rose-500 hover:bg-rose-400 text-slate-950'
+              }`}
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>{session.targetMet ? 'Retake For Streak' : 'Retry Target [Esc]'}</span>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Hero Stats Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {/* WPM Main */}
@@ -429,10 +498,17 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
       </div>
 
       {/* Secondary Metrics Strip */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
         <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center">
           <div className="text-[11px] font-mono uppercase text-slate-400">Consistency</div>
           <div className="text-xl font-bold font-mono text-slate-200 mt-1">{consistency}%</div>
+        </div>
+        <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center">
+          <div className="text-[11px] font-mono uppercase text-slate-400">Peak Combo</div>
+          <div className="text-xl font-bold font-mono text-amber-400 mt-1 flex items-center justify-center gap-1">
+            <Flame className="w-4 h-4 text-amber-400" />
+            <span>{session.maxCombo || 0}x</span>
+          </div>
         </div>
         <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center">
           <div className="text-[11px] font-mono uppercase text-slate-400">Mode</div>
@@ -444,7 +520,9 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
         </div>
         <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800/80 text-center">
           <div className="text-[11px] font-mono uppercase text-slate-400">Test Category</div>
-          <div className="text-xl font-bold font-mono text-slate-200 mt-1 capitalize">{session.category}</div>
+          <div className="text-xl font-bold font-mono text-slate-200 mt-1 capitalize flex items-center justify-center gap-1">
+            {session.category === 'bengali' ? '🇧🇩 বাংলা' : session.category === 'syntax-drills' ? '</> Syntax' : session.category === 'weak-keys' ? '🎯 Weak Keys' : session.category}
+          </div>
         </div>
       </div>
 
@@ -542,15 +620,47 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
 
       {/* Missed Characters Heatmap / Summary */}
       {session.missedCharacters && Object.keys(session.missedCharacters).length > 0 && (
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800 text-xs">
-          <div className="font-semibold text-slate-300 mb-2">Key Miss Frequency:</div>
-          <div className="flex flex-wrap gap-2">
+        <div className="p-5 rounded-3xl bg-slate-900/80 border border-slate-800 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-mono font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                <Crosshair className="w-4 h-4 text-rose-400" />
+                Problem Keys / ভুল হওয়া অক্ষরসমূহ
+              </div>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                এই টেস্টে যেসব কী-তে ভুল হয়েছে। স্পর্শ-টাইপিংয়ে দ্রুতগতি পেতে এই অক্ষরগুলো অবিলম্বে ড্রিল করুন।
+              </p>
+            </div>
+
+            {onPracticeWeakKeys && (
+              <button
+                onClick={() => {
+                  const missedList = Object.keys(session.missedCharacters || {})
+                    .map(k => k.trim())
+                    .filter(k => k.length === 1);
+                  if (missedList.length > 0) {
+                    onPracticeWeakKeys(missedList);
+                  }
+                }}
+                className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 text-xs font-mono font-bold transition-all active:scale-95 shadow"
+              >
+                <Flame className="w-3.5 h-3.5 text-rose-400" />
+                <span>দুর্বল কী ড্রিল শুরু করুন (Auto-Drill Problem Keys)</span>
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-2 pt-1">
             {Object.entries(session.missedCharacters).map(([char, count]) => (
               <span
                 key={char}
-                className="px-2.5 py-1 rounded-lg bg-rose-950/40 border border-rose-800/40 text-rose-300 font-mono"
+                className="px-2.5 py-1 rounded-xl bg-rose-950/40 border border-rose-800/40 text-rose-300 font-mono text-xs flex items-center gap-1.5"
               >
-                Key <strong className="text-white font-bold">{char === ' ' ? 'Space' : char}</strong> ({count}x)
+                <span>Key</span>
+                <strong className="text-white font-black bg-rose-900/50 px-1.5 py-0.5 rounded border border-rose-700/50">
+                  {char === ' ' ? 'Space' : char}
+                </strong>
+                <span className="text-rose-400/90 text-[11px]">({count}x miss)</span>
               </span>
             ))}
           </div>
