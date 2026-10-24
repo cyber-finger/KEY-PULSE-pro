@@ -16,87 +16,6 @@ const LOCAL_STORAGE_SESSIONS = 'keypulse_sessions_v1';
 const LOCAL_STORAGE_CUSTOM_TEXTS = 'keypulse_custom_texts_v1';
 const LOCAL_STORAGE_PROFILE = 'keypulse_profile_v1';
 
-// Initial baseline community leaderboard records to gamify right away
-export const SEED_LEADERBOARD: LeaderboardEntry[] = [
-  {
-    id: 'seed-1',
-    userId: 'bot-1',
-    displayName: 'AuraTypist_99',
-    wpm: 154,
-    cpm: 770,
-    accuracy: 99.2,
-    mode: '60s',
-    category: 'common-words',
-    timestamp: new Date(Date.now() - 3600000 * 2).toISOString()
-  },
-  {
-    id: 'seed-2',
-    userId: 'bot-2',
-    displayName: 'CyberFinger_X',
-    wpm: 142,
-    cpm: 710,
-    accuracy: 98.7,
-    mode: '30s',
-    category: 'common-words',
-    timestamp: new Date(Date.now() - 3600000 * 6).toISOString()
-  },
-  {
-    id: 'seed-3',
-    userId: 'bot-3',
-    displayName: 'VimSorcerer',
-    wpm: 135,
-    cpm: 675,
-    accuracy: 99.0,
-    mode: '60s',
-    category: 'code',
-    timestamp: new Date(Date.now() - 3600000 * 12).toISOString()
-  },
-  {
-    id: 'seed-4',
-    userId: 'bot-4',
-    displayName: 'NovaKeys',
-    wpm: 126,
-    cpm: 630,
-    accuracy: 97.8,
-    mode: '15s',
-    category: 'quotes',
-    timestamp: new Date(Date.now() - 3600000 * 24).toISOString()
-  },
-  {
-    id: 'seed-5',
-    userId: 'bot-5',
-    displayName: 'ZenType',
-    wpm: 118,
-    cpm: 590,
-    accuracy: 100,
-    mode: '60s',
-    category: 'quotes',
-    timestamp: new Date(Date.now() - 3600000 * 30).toISOString()
-  },
-  {
-    id: 'seed-6',
-    userId: 'bot-6',
-    displayName: 'SpeedyPanda',
-    wpm: 109,
-    cpm: 545,
-    accuracy: 96.5,
-    mode: '30s',
-    category: 'common-words',
-    timestamp: new Date(Date.now() - 3600000 * 48).toISOString()
-  },
-  {
-    id: 'seed-7',
-    userId: 'bot-7',
-    displayName: 'MechanicalClicker',
-    wpm: 98,
-    cpm: 490,
-    accuracy: 98.2,
-    mode: '15s',
-    category: 'common-words',
-    timestamp: new Date(Date.now() - 3600000 * 52).toISOString()
-  }
-];
-
 export const storageService = {
   // Local storage retrieval
   getLocalSessions(): TypingSession[] {
@@ -231,7 +150,7 @@ export const storageService = {
 
       const profile: UserProfile = {
         uid: user.uid,
-        displayName: user.displayName || 'Typist',
+        displayName: currentProfile?.displayName || user.displayName || 'Typist',
         photoURL: user.photoURL || '',
         bestWpm,
         bestCpm,
@@ -241,6 +160,8 @@ export const storageService = {
         achievementPoints: badgeEval.totalPoints,
         unlockedBadgeIds: badgeEval.unlockedBadgeIds,
         pinnedBadgeId: currentProfile?.pinnedBadgeId || (badgeEval.unlockedBadgeIds[0] || undefined),
+        favoriteQuote: currentProfile?.favoriteQuote || '',
+        lastUsernameChangeDate: currentProfile?.lastUsernameChangeDate,
         updatedAt: new Date().toISOString()
       };
 
@@ -251,19 +172,31 @@ export const storageService = {
     }
   },
 
-  async publishToLeaderboard(session: TypingSession, displayName: string, photoURL?: string): Promise<void> {
+  async publishToLeaderboard(session: TypingSession, displayName?: string, photoURL?: string): Promise<void> {
     const user = auth.currentUser;
-    if (!user) return;
+    const profile = this.getLocalProfile();
+    const effectiveName = displayName?.trim() || profile?.displayName || user?.displayName || 'Anonymous Typist';
+
+    if (!user) {
+      // For guests or unauthenticated users, keep a local high score profile
+      if (profile) {
+        this.saveLocalProfile({
+          ...profile,
+          displayName: effectiveName,
+          bestWpm: Math.max(profile.bestWpm, session.wpm)
+        });
+      }
+      return;
+    }
 
     const entryId = `${user.uid}_${session.mode}`.replace(/[^a-zA-Z0-9_\-]/g, '_');
     const path = `leaderboard/${entryId}`;
-    const profile = this.getLocalProfile();
 
     try {
       const entry: LeaderboardEntry = {
         id: entryId,
         userId: user.uid,
-        displayName: displayName || user.displayName || 'Anonymous Typist',
+        displayName: effectiveName,
         photoURL: photoURL || user.photoURL || '',
         wpm: session.wpm,
         cpm: session.cpm,
@@ -272,6 +205,7 @@ export const storageService = {
         category: session.category,
         pinnedBadgeId: profile?.pinnedBadgeId,
         achievementPoints: profile?.achievementPoints,
+        favoriteQuote: profile?.favoriteQuote || '',
         timestamp: session.timestamp
       };
 
@@ -302,6 +236,9 @@ export const storageService = {
     }
   },
 
+  /**
+   * Fetches genuine real user records from Firestore (strictly removes fake seed bots).
+   */
   async fetchLeaderboard(): Promise<LeaderboardEntry[]> {
     const path = 'leaderboard';
     try {
@@ -309,23 +246,22 @@ export const storageService = {
       const snapshot = await getDocs(q);
       const results: LeaderboardEntry[] = [];
       snapshot.forEach(docSnap => {
-        results.push(docSnap.data() as LeaderboardEntry);
+        const data = docSnap.data() as LeaderboardEntry;
+        // Strictly filter out any fake or seed bot records
+        if (!data.id?.startsWith('seed-') && !data.userId?.startsWith('bot-')) {
+          results.push(data);
+        }
       });
 
-      // Merge with seed entries if results are small so leaderboard is active and exciting
-      const combined = [...results];
-      for (const seed of SEED_LEADERBOARD) {
-        if (!combined.some(c => c.id === seed.id || c.displayName === seed.displayName)) {
-          combined.push(seed);
-        }
-      }
-      return combined.sort((a, b) => b.wpm - a.wpm);
+      return results.sort((a, b) => b.wpm - a.wpm);
     } catch {
-      // In offline or restricted environments, return seed entries gracefully
-      return [...SEED_LEADERBOARD].sort((a, b) => b.wpm - a.wpm);
+      return [];
     }
   },
 
+  /**
+   * Realtime subscription for genuine real user leaderboard rankings.
+   */
   subscribeLeaderboard(callback: (entries: LeaderboardEntry[]) => void): () => void {
     const path = 'leaderboard';
     try {
@@ -335,26 +271,163 @@ export const storageService = {
         snapshot => {
           const results: LeaderboardEntry[] = [];
           snapshot.forEach(docSnap => {
-            results.push(docSnap.data() as LeaderboardEntry);
-          });
-          const combined = [...results];
-          for (const seed of SEED_LEADERBOARD) {
-            if (!combined.some(c => c.id === seed.id || c.displayName === seed.displayName)) {
-              combined.push(seed);
+            const data = docSnap.data() as LeaderboardEntry;
+            // Strictly filter out any fake / seed bot records
+            if (!data.id?.startsWith('seed-') && !data.userId?.startsWith('bot-')) {
+              results.push(data);
             }
-          }
-          callback(combined.sort((a, b) => b.wpm - a.wpm));
+          });
+          callback(results.sort((a, b) => b.wpm - a.wpm));
         },
         error => {
-          console.warn('Leaderboard realtime subscription error, using local fallback:', error);
-          callback([...SEED_LEADERBOARD].sort((a, b) => b.wpm - a.wpm));
+          console.warn('Leaderboard realtime subscription error:', error);
+          callback([]);
         }
       );
       return unsubscribe;
     } catch {
-      callback([...SEED_LEADERBOARD].sort((a, b) => b.wpm - a.wpm));
+      callback([]);
       return () => {};
     }
+  },
+
+  /**
+   * Check if current user is allowed to change username (once per 30 days).
+   */
+  getUsernameChangeStatus(): {
+    canChange: boolean;
+    remainingDays: number;
+    nextAllowedDate?: string;
+  } {
+    const profile = this.getLocalProfile();
+    if (!profile?.lastUsernameChangeDate) {
+      return { canChange: true, remainingDays: 0 };
+    }
+
+    const lastChangeTime = new Date(profile.lastUsernameChangeDate).getTime();
+    if (isNaN(lastChangeTime)) {
+      return { canChange: true, remainingDays: 0 };
+    }
+
+    const now = Date.now();
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    const elapsed = now - lastChangeTime;
+
+    if (elapsed >= thirtyDaysMs) {
+      return { canChange: true, remainingDays: 0 };
+    }
+
+    const remainingMs = thirtyDaysMs - elapsed;
+    const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+    const nextDate = new Date(lastChangeTime + thirtyDaysMs).toLocaleDateString('bn-BD', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    return {
+      canChange: false,
+      remainingDays,
+      nextAllowedDate: nextDate
+    };
+  },
+
+  /**
+   * Updates user username and favorite public quote.
+   * Enforces 30-day (1 month) cooldown on username changes.
+   * Favorite quote can be updated freely anytime.
+   */
+  async updateUsernameAndQuote(newUsername: string, newQuote: string): Promise<{
+    success: boolean;
+    error?: string;
+    remainingDays?: number;
+    profile: UserProfile;
+  }> {
+    const currentProfile = this.getLocalProfile() || {
+      uid: auth.currentUser?.uid || 'guest_' + Math.random().toString(36).substring(2, 9),
+      displayName: auth.currentUser?.displayName || 'Pro Typist',
+      bestWpm: 0,
+      bestCpm: 0,
+      testsCompleted: 0,
+      averageAccuracy: 100,
+      updatedAt: new Date().toISOString()
+    };
+
+    const trimmedName = newUsername.trim();
+    const trimmedQuote = newQuote.trim().slice(0, 150);
+    const isNameChanging = Boolean(trimmedName && trimmedName !== currentProfile.displayName);
+
+    if (isNameChanging) {
+      if (trimmedName.length < 2 || trimmedName.length > 25) {
+        return {
+          success: false,
+          error: 'ইউজারনেম ২ থেকে ২৫ অক্ষরের মধ্যে হতে হবে।',
+          profile: currentProfile
+        };
+      }
+
+      // Check 30-day cooldown
+      if (currentProfile.lastUsernameChangeDate) {
+        const lastChangeTime = new Date(currentProfile.lastUsernameChangeDate).getTime();
+        const now = Date.now();
+        const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+        const elapsed = now - lastChangeTime;
+
+        if (elapsed < thirtyDaysMs) {
+          const remainingMs = thirtyDaysMs - elapsed;
+          const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+          return {
+            success: false,
+            error: `ইউজারনেম মাসে কেবল একবার পরিবর্তন করা যায়। পরবর্তী পরিবর্তন সম্ভব ${remainingDays} দিন পর।`,
+            remainingDays,
+            profile: currentProfile
+          };
+        }
+      }
+    }
+
+    const updatedProfile: UserProfile = {
+      ...currentProfile,
+      displayName: trimmedName || currentProfile.displayName,
+      favoriteQuote: trimmedQuote,
+      lastUsernameChangeDate: isNameChanging ? new Date().toISOString() : currentProfile.lastUsernameChangeDate,
+      updatedAt: new Date().toISOString()
+    };
+
+    // Save locally
+    this.saveLocalProfile(updatedProfile);
+
+    // If authenticated, sync to Firestore user doc and all leaderboard entries
+    const user = auth.currentUser;
+    if (user) {
+      try {
+        await setDoc(doc(db, 'users', user.uid), updatedProfile, { merge: true });
+
+        // Update all leaderboard documents created by this user
+        const q = query(collection(db, 'leaderboard'), orderBy('wpm', 'desc'));
+        const snap = await getDocs(q);
+        const updates: Promise<any>[] = [];
+        snap.forEach(docSnap => {
+          const data = docSnap.data() as LeaderboardEntry;
+          if (data.userId === user.uid) {
+            updates.push(
+              setDoc(doc(db, 'leaderboard', docSnap.id), {
+                displayName: updatedProfile.displayName,
+                favoriteQuote: updatedProfile.favoriteQuote || ''
+              }, { merge: true })
+            );
+          }
+        });
+        await Promise.all(updates);
+      } catch (error) {
+        console.warn('Failed syncing profile/leaderboard updates to cloud', error);
+      }
+    }
+
+    return {
+      success: true,
+      profile: updatedProfile
+    };
   },
 
   async syncAllLocalDataToCloud(): Promise<{ syncedSessions: number; syncedTexts: number }> {

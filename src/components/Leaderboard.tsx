@@ -9,12 +9,17 @@ import {
   RefreshCw,
   Sparkles,
   ArrowRight,
-  Award
+  Award,
+  Quote,
+  Edit3,
+  UserCheck,
+  Play
 } from 'lucide-react';
-import { LeaderboardEntry } from '../types';
+import { LeaderboardEntry, UserProfile } from '../types';
 import { ALL_BADGES, BADGE_TIER_CONFIG } from '../data/achievements';
 import { storageService } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
+import { EditProfileModal } from './EditProfileModal';
 
 interface LeaderboardProps {
   onChallengeScore: (mode: string) => void;
@@ -25,6 +30,8 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [filterMode, setFilterMode] = useState<string>('all');
   const [loading, setLoading] = useState<boolean>(true);
+  const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
+  const [currentProfile, setCurrentProfile] = useState<UserProfile | null>(() => storageService.getLocalProfile());
 
   useEffect(() => {
     setLoading(true);
@@ -40,7 +47,13 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
     setLoading(true);
     const fresh = await storageService.fetchLeaderboard();
     setEntries(fresh);
+    setCurrentProfile(storageService.getLocalProfile());
     setLoading(false);
+  };
+
+  const handleProfileUpdated = (updated: UserProfile) => {
+    setCurrentProfile(updated);
+    handleManualRefresh();
   };
 
   const filtered = entries.filter(e => {
@@ -62,17 +75,52 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
             Competitive Leaderboard
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Real-time verified speed test rankings across the global typist community
+            রিয়েল টাইপিস্টদের ভেরিফায়েড স্পিড স্কোর ও সবার পছন্দের উক্তি
           </p>
         </div>
 
         <button
           onClick={handleManualRefresh}
           disabled={loading}
-          className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-mono text-slate-300 transition-colors"
+          className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-700 hover:bg-slate-800 text-xs font-mono text-slate-300 transition-colors shadow-sm"
         >
           <RefreshCw className={`w-3.5 h-3.5 text-amber-400 ${loading ? 'animate-spin' : ''}`} />
           Refresh
+        </button>
+      </div>
+
+      {/* User Leaderboard Identity Card */}
+      <div className="p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-amber-950/30 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-wrap items-center justify-between gap-4 shadow-xl">
+        <div className="flex items-center gap-3.5 min-w-0">
+          <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center font-black text-lg shrink-0 shadow-inner">
+            {(currentProfile?.displayName || user?.displayName || 'T').charAt(0).toUpperCase()}
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 font-mono">আপনার লিডারবোর্ড নাম:</span>
+              <span className="text-sm sm:text-base font-extrabold text-slate-100 truncate">
+                {currentProfile?.displayName || user?.displayName || 'Pro Typist'}
+              </span>
+            </div>
+            {currentProfile?.favoriteQuote ? (
+              <div className="text-xs text-amber-300 italic font-sans flex items-center gap-1.5 mt-1 truncate max-w-sm sm:max-w-md">
+                <Quote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                <span className="truncate">&quot;{currentProfile.favoriteQuote}&quot;</span>
+              </div>
+            ) : (
+              <div className="text-[11px] text-slate-400 mt-0.5">
+                এখনও কোনো উক্তি যুক্ত করেননি (উক্তি যোগ করলে সবাই দেখতে পাবে)
+              </div>
+            )}
+          </div>
+        </div>
+
+        <button
+          onClick={() => setIsEditModalOpen(true)}
+          className="px-4 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold font-mono text-xs transition-all shadow hover:scale-105 active:scale-95 flex items-center gap-2"
+        >
+          <Edit3 className="w-3.5 h-3.5" />
+          ইউজারনেম ও উক্তি পরিবর্তন
         </button>
       </div>
 
@@ -112,6 +160,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
               <div className="text-[11px] font-mono text-slate-400 mt-0.5">
                 {filtered[1].cpm} CPM · {filtered[1].accuracy}% acc
               </div>
+              {filtered[1].favoriteQuote && (
+                <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 italic font-sans flex items-center justify-center gap-1.5 truncate">
+                  <Quote className="w-3 h-3 text-cyan-400 shrink-0" />
+                  <span className="truncate">&quot;{filtered[1].favoriteQuote}&quot;</span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => onChallengeScore(filtered[1].mode)}
@@ -138,6 +192,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
               <div className="text-xs font-mono text-amber-400/70 mt-0.5">
                 {filtered[0].cpm} CPM · {filtered[0].accuracy}% acc · {filtered[0].mode}
               </div>
+              {filtered[0].favoriteQuote && (
+                <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-black/60 border border-amber-500/40 text-[11px] text-amber-200 italic font-sans flex items-center justify-center gap-1.5 truncate">
+                  <Quote className="w-3 h-3 text-amber-400 shrink-0" />
+                  <span className="truncate">&quot;{filtered[0].favoriteQuote}&quot;</span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => onChallengeScore(filtered[0].mode)}
@@ -163,6 +223,12 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
               <div className="text-[11px] font-mono text-slate-400 mt-0.5">
                 {filtered[2].cpm} CPM · {filtered[2].accuracy}% acc
               </div>
+              {filtered[2].favoriteQuote && (
+                <div className="mt-2.5 px-3 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800 text-[11px] text-slate-300 italic font-sans flex items-center justify-center gap-1.5 truncate">
+                  <Quote className="w-3 h-3 text-amber-500 shrink-0" />
+                  <span className="truncate">&quot;{filtered[2].favoriteQuote}&quot;</span>
+                </div>
+              )}
             </div>
             <button
               onClick={() => onChallengeScore(filtered[2].mode)}
@@ -177,8 +243,27 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
       {/* Main Table */}
       <div className="p-6 rounded-3xl bg-slate-900/80 border border-slate-800 shadow-xl overflow-hidden">
         {filtered.length === 0 ? (
-          <div className="text-center py-12 text-xs font-mono text-slate-500">
-            No scores found for mode &quot;{filterMode}&quot;. Be the first to set a record!
+          <div className="text-center py-14 space-y-3">
+            <div className="w-14 h-14 mx-auto rounded-3xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex items-center justify-center">
+              <Trophy className="w-7 h-7" />
+            </div>
+            <h4 className="text-base font-bold text-slate-200">
+              {filterMode === 'all'
+                ? 'লিডারবোর্ডে এখনও কোনো স্কোর জমা হয়নি'
+                : `"${filterMode}" মোডের জন্য কোনো রেকর্ড পাওয়া যায়নি`}
+            </h4>
+            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+              নকল রেকর্ডসমূহ সরিয়ে দেওয়া হয়েছে। আপনিই প্রথম রিয়েল টেস্ট দিয়ে লিডারবোর্ডের শীর্ষে আপনার নাম ও পছন্দের উক্তি প্রকাশ করুন!
+            </p>
+            <div className="pt-2">
+              <button
+                onClick={() => onChallengeScore(filterMode === 'all' ? '60s' : filterMode)}
+                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-bold font-mono text-xs transition-all shadow-md inline-flex items-center gap-2"
+              >
+                <Play className="w-3.5 h-3.5 fill-current" />
+                এখনই টেস্ট শুরু করুন
+              </button>
+            </div>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -186,7 +271,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
               <thead>
                 <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider text-[11px]">
                   <th className="py-3 px-3">Rank</th>
-                  <th className="py-3 px-3">Typist</th>
+                  <th className="py-3 px-3">Typist & Quote</th>
                   <th className="py-3 px-3">Speed (WPM)</th>
                   <th className="py-3 px-3">Rate (CPM)</th>
                   <th className="py-3 px-3">Accuracy</th>
@@ -227,34 +312,44 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
                         </div>
                       </td>
                       <td className="py-3.5 px-3">
-                        <div className="flex items-center gap-2">
-                          {entry.photoURL ? (
-                            <img
-                              src={entry.photoURL}
-                              alt={entry.displayName}
-                              className="w-5 h-5 rounded-full"
-                            />
-                          ) : (
-                            <div className="w-5 h-5 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] uppercase font-bold">
-                              {entry.displayName.charAt(0)}
+                        <div className="flex flex-col">
+                          <div className="flex items-center gap-2">
+                            {entry.photoURL ? (
+                              <img
+                                src={entry.photoURL}
+                                alt={entry.displayName}
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-6 h-6 rounded-full bg-slate-800 text-slate-300 flex items-center justify-center text-[10px] uppercase font-bold border border-slate-700">
+                                {entry.displayName.charAt(0)}
+                              </div>
+                            )}
+                            <span className={isCurrentUser ? 'text-amber-300 font-bold text-sm' : 'text-slate-200'}>
+                              {entry.displayName}
+                            </span>
+                            {isCurrentUser && (
+                              <span className="text-[9px] px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 font-black">
+                                YOU
+                              </span>
+                            )}
+                            {entry.pinnedBadgeId && (
+                              <span
+                                className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/30 flex items-center gap-1 font-mono"
+                                title={`Pinned Badge: ${ALL_BADGES.find(b => b.id === entry.pinnedBadgeId)?.name || 'Milestone'}`}
+                              >
+                                <Award className="w-3 h-3" />
+                                {ALL_BADGES.find(b => b.id === entry.pinnedBadgeId)?.name.split('(')[0] || 'Badge'}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Public Favorite Quote */}
+                          {entry.favoriteQuote && (
+                            <div className="text-[11px] text-amber-300/80 italic font-sans flex items-center gap-1 mt-1 pl-8 truncate max-w-xs sm:max-w-md">
+                              <Quote className="w-2.5 h-2.5 text-amber-400/80 shrink-0" />
+                              <span className="truncate">&quot;{entry.favoriteQuote}&quot;</span>
                             </div>
-                          )}
-                          <span className={isCurrentUser ? 'text-amber-300 font-bold' : 'text-slate-200'}>
-                            {entry.displayName}
-                          </span>
-                          {isCurrentUser && (
-                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-400 text-slate-950 font-bold">
-                              YOU
-                            </span>
-                          )}
-                          {entry.pinnedBadgeId && (
-                            <span
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-amber-400/10 text-amber-400 border border-amber-400/30 flex items-center gap-1 font-mono"
-                              title={`Pinned Badge: ${ALL_BADGES.find(b => b.id === entry.pinnedBadgeId)?.name || 'Milestone'}`}
-                            >
-                              <Award className="w-3 h-3" />
-                              {ALL_BADGES.find(b => b.id === entry.pinnedBadgeId)?.name.split('(')[0] || 'Badge'}
-                            </span>
                           )}
                         </div>
                       </td>
@@ -288,6 +383,14 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ onChallengeScore }) =>
           </div>
         )}
       </div>
+
+      {/* Edit Username & Quote Modal */}
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onProfileUpdated={handleProfileUpdated}
+      />
     </div>
   );
 };
+

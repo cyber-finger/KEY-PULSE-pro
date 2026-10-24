@@ -25,7 +25,7 @@ import {
   EyeOff,
   Code
 } from 'lucide-react';
-import { TypingSession, LeaderboardEntry, Badge } from '../types';
+import { TypingSession, LeaderboardEntry, Badge, UserProfile } from '../types';
 import { BADGE_TIER_CONFIG } from '../data/achievements';
 import { storageService } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
@@ -55,8 +55,11 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
   const [copied, setCopied] = useState(false);
   const [isPublishing, setIsPublishing] = useState(false);
   const [published, setPublished] = useState(false);
-  const [leaderboardName, setLeaderboardName] = useState(user?.displayName || 'SpeedTypist');
-  const [showNameInput, setShowNameInput] = useState(!user);
+  const [localProfile] = useState<UserProfile | null>(() => storageService.getLocalProfile());
+  const [leaderboardName, setLeaderboardName] = useState(
+    localProfile?.displayName || user?.displayName || 'Pro Typist'
+  );
+  const [showNameInput, setShowNameInput] = useState(!user && !localProfile?.displayName);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
   // Trigger celebration confetti for solid typing speeds
@@ -675,8 +678,10 @@ export const SessionResults: React.FC<SessionResultsProps> = ({
           </div>
           <div>
             <h4 className="text-sm font-bold text-slate-100">Global Leaderboard</h4>
-            <p className="text-xs text-slate-400">
-              Submit this score to compete on the global rankings!
+            <p className="text-xs text-slate-400 truncate max-w-xs sm:max-w-md">
+              {localProfile?.displayName
+                ? `Posting as "${localProfile.displayName}"${localProfile.favoriteQuote ? ` · "${localProfile.favoriteQuote}"` : ''}`
+                : 'Submit this score to compete on the global rankings!'}
             </p>
           </div>
         </div>

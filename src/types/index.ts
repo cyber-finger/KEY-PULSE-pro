@@ -60,6 +60,8 @@ export interface UserProfile {
   achievementPoints?: number;
   unlockedBadgeIds?: string[];
   pinnedBadgeId?: string;
+  favoriteQuote?: string;
+  lastUsernameChangeDate?: string;
   updatedAt: string;
 }
 
@@ -75,6 +77,7 @@ export interface LeaderboardEntry {
   category?: string;
   pinnedBadgeId?: string;
   achievementPoints?: number;
+  favoriteQuote?: string;
   timestamp: string;
 }
 

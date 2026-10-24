@@ -22,6 +22,7 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { ThemeName } from '../types';
 import { THEMES } from '../data/themes';
+import { storageService } from '../services/storageService';
 
 interface NavbarProps {
   activeTab: 'test' | 'campaign' | 'stats' | 'leaderboard' | 'library' | 'profile' | 'settings';
@@ -256,7 +257,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                 </div>
                 <span className="max-w-[80px] sm:max-w-[120px] truncate hidden xs:inline">
-                  {user.displayName?.split(' ')[0] || 'Synced'}
+                  {storageService.getLocalProfile()?.displayName?.split(' ')[0] || user.displayName?.split(' ')[0] || 'Synced'}
                 </span>
               </>
             ) : (

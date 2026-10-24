@@ -16,6 +16,8 @@
         "achievementPoints": { "type": "number" },
         "unlockedBadgeIds": { "type": "array" },
         "pinnedBadgeId": { "type": "string", "maxLength": 100 },
+        "favoriteQuote": { "type": "string", "maxLength": 250 },
+        "lastUsernameChangeDate": { "type": "string" },
         "updatedAt": { "type": "string" }
       },
       "required": ["uid", "displayName", "bestWpm", "testsCompleted"]
@@ -56,6 +58,7 @@
         "category": { "type": "string", "maxLength": 50 },
         "pinnedBadgeId": { "type": "string", "maxLength": 100 },
         "achievementPoints": { "type": "number" },
+        "favoriteQuote": { "type": "string", "maxLength": 250 },
         "timestamp": { "type": "string" }
       },
       "required": ["id", "userId", "displayName", "wpm", "cpm", "accuracy", "mode"]

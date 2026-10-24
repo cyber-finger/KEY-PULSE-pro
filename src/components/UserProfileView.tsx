@@ -26,12 +26,14 @@ import {
   ChevronRight,
   TrendingUp,
   User as UserIcon,
-  HelpCircle
+  HelpCircle,
+  Edit3
 } from 'lucide-react';
 import { Badge, TypingSession, UserProfile, BadgeCategory, BadgeTier } from '../types';
 import { ALL_BADGES, BADGE_TIER_CONFIG, getBadgeProgress, calculateTotalWordsTyped } from '../data/achievements';
 import { storageService } from '../services/storageService';
 import { useAuth } from '../context/AuthContext';
+import { EditProfileModal } from './EditProfileModal';
 
 interface UserProfileViewProps {
   sessions: TypingSession[];
@@ -48,8 +50,8 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<'all' | 'unlocked' | 'locked'>('all');
   const [copiedShare, setCopiedShare] = useState(false);
-
-  const localProfile = storageService.getLocalProfile();
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [localProfile, setLocalProfile] = useState<UserProfile | null>(() => storageService.getLocalProfile());
   const totalWords = calculateTotalWordsTyped(sessions);
   const testsCompleted = sessions.length;
   const bestWpm = sessions.reduce((max, s) => Math.max(max, s.wpm), 0);
@@ -160,17 +162,43 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
             </div>
 
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-xl sm:text-2xl font-black text-slate-100 tracking-tight">
                   {localProfile?.displayName || user?.displayName || 'Pro Typist'}
                 </h2>
+                <button
+                  onClick={() => setIsEditModalOpen(true)}
+                  className="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-400 hover:text-amber-300 text-xs font-mono transition-colors flex items-center gap-1 shadow-sm"
+                  title="ইউজারনেম ও উক্তি পরিবর্তন করুন"
+                >
+                  <Edit3 className="w-3 h-3" />
+                  <span>এডিট</span>
+                </button>
                 <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-400 font-bold">
                   {rankTitle}
                 </span>
               </div>
               <p className="text-xs text-slate-400 font-mono">
-                {user?.email ? user.email : 'Local Guest Account · Cloud Sync Available'}
+                {user?.email ? user.email : 'Local Account · Cloud Sync Active'}
               </p>
+
+              {/* Public Favorite Quote */}
+              <div className="pt-1">
+                <div className="p-2.5 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between gap-3 max-w-sm sm:max-w-md">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Quote className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="text-xs text-amber-200/90 italic truncate font-sans">
+                      {localProfile?.favoriteQuote ? `"${localProfile.favoriteQuote}"` : 'কোনো প্রিয় উক্তি সেট করা হয়নি'}
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setIsEditModalOpen(true)}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 font-mono underline shrink-0"
+                  >
+                    {localProfile?.favoriteQuote ? 'উক্তি পরিবর্তন' : '+ উক্তি দিন'}
+                  </button>
+                </div>
+              </div>
 
               {/* Level XP Bar */}
               <div className="pt-2 w-56 sm:w-64">
@@ -425,6 +453,13 @@ export const UserProfileView: React.FC<UserProfileViewProps> = ({
           Start Next Test
         </button>
       </div>
+
+      {/* Edit Username & Quote Modal */}
+      <EditProfileModal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        onProfileUpdated={updated => setLocalProfile(updated)}
+      />
     </div>
   );
 };
