@@ -20,20 +20,16 @@
         padding: 0;
       }
     </style>
-    <script>
-      // Clean redirect if accessed via obsolete /dist/ path
-      if (window.location.pathname.includes('/dist/')) {
-        var normalized = window.location.pathname.replace(/\/dist\/?/, '/') + window.location.search + window.location.hash;
-        if (window.location.pathname !== normalized) {
-          window.location.replace(normalized);
-        }
-      }
-    </script>
-    <!-- Adsterra Native Banner Ad Script -->
-    <script async="async" data-cfasync="false" src="https://pl31689374.profitableratecpmnetwork.com/c54e081f07e280d291d57c9ef613cbb9/invoke.js"></script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-amber-400/30 selection:text-amber-200 min-h-screen" style="background-color: #020617; color: #f8fafc;">
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: 'Plus Jakarta Sans', system-ui, sans-serif; color: #f8fafc; background-color: #020617; text-align: center; padding: 24px;">
+        <div style="width: 44px; height: 44px; border: 3px solid rgba(245, 158, 11, 0.2); border-top-color: #f59e0b; border-radius: 50%; animation: kp-spin 0.8s linear infinite; margin-bottom: 16px;"></div>
+        <div style="font-size: 20px; font-weight: 800; color: #f8fafc; letter-spacing: -0.025em; font-family: 'Space Grotesk', sans-serif;">KeyPulse <span style="color: #f59e0b;">Pro</span></div>
+        <p style="font-size: 13px; color: #94a3b8; margin-top: 6px; font-family: monospace;">Loading typing speed engine...</p>
+        <style>@keyframes kp-spin { to { transform: rotate(360deg); } }</style>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
